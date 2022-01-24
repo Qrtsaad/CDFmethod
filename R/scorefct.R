@@ -108,10 +108,10 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   # FP # TP #
   ###########
   
-  confusionmatrix[1,1] <- sum(v_ver == 0 & v_est == 0) #vrais negatfs
-  confusionmatrix[1,2] <- sum(v_ver == 1 & v_est == 0) #faux négatifs
-  confusionmatrix[2,1] <- sum(v_ver == 0 & v_est == 1) #faux positifs
-  confusionmatrix[2,2] <- sum(v_ver == 1 & v_est == 1) #vrais positifs
+  confusionmatrix[1,1] <- sum( (v_ver == 0) & (v_est == 0)) #vrais negatfs
+  confusionmatrix[1,2] <- sum((v_ver == 1) & (v_est == 0)) #faux négatifs
+  confusionmatrix[2,1] <- sum((v_ver == 0) & (v_est == 1)) #faux positifs
+  confusionmatrix[2,2] <- sum((v_ver == 1) & (v_est == 1)) #vrais positifs
   
   
   allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
