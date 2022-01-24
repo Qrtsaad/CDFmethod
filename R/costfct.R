@@ -1,3 +1,25 @@
+#' Cost Bernoulli
+#'
+#'
+#' @description Cost function for Bernoulli models
+#'
+#' @param v vector of data points
+#'
+#' @return the optimal cost value
+#' @export
+#'
+#' @examples
+#' cost_bernoulli(c(rbernoulli(50, p = 0.1), rbernoulli(50, p = 0.9)))
+cost_bernoulli <- function(v)
+{
+  n <- length(v)
+  a <- sum(v)
+  b <- sum(1-v)
+  if((mean(v) == 0) || (1-mean(v)==0)){res <- 0} else {res <- -(a*log(a/n) + b*log(1-a/n))}
+  return(res)
+}
+
+
 #' Cost Gauss
 #'
 #'
