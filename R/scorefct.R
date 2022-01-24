@@ -1,4 +1,4 @@
-prec_score <- function(mat)
+prec_Score <- function(mat)
 {
   ###########
   # TN # FN #
@@ -13,7 +13,7 @@ prec_score <- function(mat)
 }
 
 
-rec_score <- function(mat)
+rec_Score <- function(mat)
 {
   ###########
   # TN # FN #
@@ -28,7 +28,7 @@ rec_score <- function(mat)
 }
 
 
-f1_score <- function(mat)
+f1_Score <- function(mat)
 {
   ###########
   # TN # FN #
@@ -43,7 +43,7 @@ f1_score <- function(mat)
 }
 
 
-acc_score <- function(mat)
+acc_Score <- function(mat)
 {
   ###########
   # TN # FN #
@@ -63,7 +63,7 @@ acc_score <- function(mat)
 
 
 
-tss_score <- function(mat)
+tss_Score <- function(mat)
 {
   precision <- prec_score(mat)
   recall <- rec_score(mat)
@@ -122,11 +122,11 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
   if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
   
-  if (score == "f1") {my_score <- f1_score()}
+  if (score == "f1") {my_score <- f1_Score()}
   else if (score == "accuracy") {my_score <- acc_Score}
   else if (score == "precision") {my_score <- prec_Score}
   else if (score == "recall") {my_score <- rec_Score}
-  else if (score == "tss") {my_score <- tss_score}
+  else if (score == "tss") {my_score <- tss_Score}
   
 
   
