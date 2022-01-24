@@ -99,6 +99,7 @@ compute_mf <- function(v_ver,v_est, score = "f1")
 
   # Initialisation de la matrice de confusion
   confusionmatrix <- matrix(data = c(0,0,0,0), nrow=2,ncol=2)
+  
   colnames(confusionmatrix) <- c("-", "+")
   rownames(confusionmatrix) <- c("-", "+")
   
@@ -107,11 +108,10 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   ###########
   # FP # TP #
   ###########
-  
-  confusionmatrix[1,1] <- sum( (v_ver == 0) & (v_est == 0)) #vrais negatfs
-  confusionmatrix[1,2] <- sum((v_ver == 1) & (v_est == 0)) #faux négatifs
-  confusionmatrix[2,1] <- sum((v_ver == 0) & (v_est == 1)) #faux positifs
-  confusionmatrix[2,2] <- sum((v_ver == 1) & (v_est == 1)) #vrais positifs
+  confusionmatrix[1,1] <- sum( (v_ver == F) & (v_est == F)) #vrais negatfs
+  confusionmatrix[1,2] <- sum((v_ver == T) & (v_est == F)) #faux négatifs
+  confusionmatrix[2,1] <- sum((v_ver == F) & (v_est == T)) #faux positifs
+  confusionmatrix[2,2] <- sum((v_ver == T) & (v_est == T)) #vrais positifs
   
   
   allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
