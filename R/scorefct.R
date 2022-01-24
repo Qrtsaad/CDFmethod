@@ -122,14 +122,14 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
   if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
   
-  if (score == "f1") {my_score <- f1_score()}
-  else if (score == "accuracy") {my_score <- acc_score}
-  else if (score == "precision") {my_score <- prec_score}
-  else if (score == "recall") {my_score <- rec_score}
-  else if (score == "tss") {my_score <- tss_score}
+  if (score == "f1") {my_score <- f1_score(confusionmatrix)}
+  else if (score == "accuracy") {my_score <- acc_score(confusionmatrix)}
+  else if (score == "precision") {my_score <- prec_score(confusionmatrix)}
+  else if (score == "recall") {my_score <- rec_score(confusionmatrix)}
+  else if (score == "tss") {my_score <- tss_score(confusionmatrix)}
   
 
   
-  return(list(Confusion = confusionmatrix, score = my_score(confusionmatrix)))
+  return(list(Confusion = confusionmatrix, score = my_score))
   
 }
