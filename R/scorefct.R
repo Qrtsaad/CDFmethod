@@ -96,16 +96,7 @@ nid_score <- function(y, y_pred)
 
 compute_mf <- function(v_ver,v_est, score = "f1")
 {
-  allowed.score <- c("f1", "accuracy", "precision", "recall", "tss", "nid")
-  if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
-  
-  if (score == "f1") {score_f <- f1_score}
-  else if (score == "accuracy") {score_f <- acc_Score}
-  else if (score == "precision") {score_f <- prec_Score}
-  else if (score == "recall") {score_f <- rec_Score}
-  else if (score == "tss") {score_f <- tss_score}
-  else if (score == "nid") {score_f <- nid_score}
-  
+
   # Initialisation de la matrice de confusion
   confusionmatrix <- matrix(data = c(0,0,0,0), nrow=2,ncol=2)
   colnames(confusionmatrix) <- c("-", "+")
@@ -128,10 +119,18 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   confusionmatrix[2,1] <- tab2[1] #faux positifs
   confusionmatrix[2,2] <- tab2[2] #vrais positifs
   
+  allowed.score <- c("f1", "accuracy", "precision", "recall", "tss", "nid")
+  if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
   
-  if(score == "nid") {my_score <- nid_score(v_ver, v_est)} else {my_score <- score_f(confusionmatrix)}
+  if (score == "f1") {my_score <- f1_score()}
+  else if (score == "accuracy") {my_score <- acc_Score}
+  else if (score == "precision") {my_score <- prec_Score}
+  else if (score == "recall") {my_score <- rec_Score}
+  else if (score == "tss") {my_score <- tss_score}
+  
+  else if(score == "nid") {my_score <- nid_score(v_ver, v_est)} else {my_score <- score_f(confusionmatrix)}
 
   
-  return(list(Confusion = confusionmatrix, score = my_score))
+  return(list(Confusion = confusionmatrix, score = my_score(confusionmatrix)))
   
 }
