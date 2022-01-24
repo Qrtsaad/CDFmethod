@@ -107,7 +107,7 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   else if (score == "nid") {score_f <- nid_score}
   
   # Initialisation de la matrice de confusion
-  confusionmatrix <- matrix(data = NULL, nrow=2,ncol=2)
+  confusionmatrix <- matrix(data = c(0,0,0,0), nrow=2,ncol=2)
   colnames(confusionmatrix) <- c("-", "+")
   rownames(confusionmatrix) <- c("-", "+")
   
