@@ -119,7 +119,7 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   confusionmatrix[2,1] <- tab2[1] #faux positifs
   confusionmatrix[2,2] <- tab2[2] #vrais positifs
   
-  allowed.score <- c("f1", "accuracy", "precision", "recall", "tss", "nid")
+  allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
   if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
   
   if (score == "f1") {my_score <- f1_score()}
@@ -128,7 +128,6 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   else if (score == "recall") {my_score <- rec_Score}
   else if (score == "tss") {my_score <- tss_score}
   
-  else if(score == "nid") {my_score <- nid_score(v_ver, v_est)} else {my_score <- score_f(confusionmatrix)}
 
   
   return(list(Confusion = confusionmatrix, score = my_score(confusionmatrix)))
