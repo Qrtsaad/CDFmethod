@@ -102,22 +102,17 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   colnames(confusionmatrix) <- c("-", "+")
   rownames(confusionmatrix) <- c("-", "+")
   
-  # Construction de la matrice de confusion
-  tab1 <- table(v_est %in% v_ver) #ici on construit le tableau des elements estimés vs les éléments de vérité, si on a un élément de tauhat dans tau, alors c'est un vrai positif, sinon c'est un faux positif
-  tab2 <- table(v_ver %in% v_est) # ici on fait pareil pour différencier les elements de vérité vs les elements estimés
-  
-  
   ###########
   # TN # FN #
   ###########
   # FP # TP #
   ###########
   
+  confusionmatrix[1,1] <- sum(v_ver == 0 & v_est == 0) #vrais negatfs
+  confusionmatrix[1,2] <- sum(v_ver == 1 & v_est == 0) #faux négatifs
+  confusionmatrix[2,1] <- sum(v_ver == 0 & v_est == 1) #faux positifs
+  confusionmatrix[2,2] <- sum(v_ver == 1 & v_est == 1) #vrais positifs
   
-  confusionmatrix[1,1] <- tab1[2] #vrais négatifs
-  confusionmatrix[1,2] <- tab1[1] #faux négatifs
-  confusionmatrix[2,1] <- tab2[1] #faux positifs
-  confusionmatrix[2,2] <- tab2[2] #vrais positifs
   
   allowed.score <- c("f1", "accuracy", "precision", "recall", "tss")
   if(!score %in% allowed.score){stop('type must be one of: ', paste(allowed.score, collapse=", "))}
