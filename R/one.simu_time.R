@@ -9,6 +9,8 @@ stock_v <- function(simu)
   return(vec)
 }
 
+
+
 one.simu_time_ocOP <- function(K, n)
 {
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
@@ -41,6 +43,7 @@ one.simu_time_PELT <- function(K, n)
   
   return(sim)
 }
+
 
 
 one.simu_time_CUSUM <- function(data)
