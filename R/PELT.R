@@ -1,7 +1,7 @@
-#' Pruned Exact Linear Time
+#' one change Pruned Exact Linear Time
 #'
 #'
-#' @description Pruned Exact Linear Time Algorithm
+#' @description Pruned Exact Linear Time Algorithm for time series with 0/1 changepoint
 #'
 #' @param data vector of data points
 #' @param cost a number
