@@ -1,18 +1,16 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-double cost_bernoulli(NumericVector v)
+// [[Rcpp::export]]
+double cost_bernoullicpp(NumericVector v)
 {
-  unsigned short int n = v.length();
-  int a = sum(v);
-  int b = sum(1-v);
-  double res = 0;
+  double res = 0, n = v.length(), a = sum(v), b = n - sum(v);
   
-  if(mean(v) == 0 | 1-mean(v)==0 ) {
+  if(mean(v) == 0 | 1.0 - mean(v)==0 ) {
     res = 0;
   } 
   else {
-    res = -(a*log(a/n) + b*log(1-a/n));
+    res = -(a*log(a/n) + b*log(1.0-a/n));
   }
   return res;
 }
@@ -26,42 +24,50 @@ List myOPcpp(NumericVector data) {
   double val_min = 0, a = 0;
   int arg_min = 0, v = 0;
   
-  double beta = 2*var(data)*log(n);
+  double beta = 2.0*var(data)*log(double(n));
   
-  
-  for(int t=2 - 1;t <= n - 1;t++) {
-    Range idx(1,t);
-    val_min = cost_bernoulli(data[idx]);
+  for(int t=1;t < n;t++) {
+    //Range id(0,t);
+    val_min = cost_bernoullicpp(data[Range(0,t)]);
     arg_min = 0;
-    for (int s=2 - 1;s <= t - 1;s++)
-    {
-      Range idx(s,t);
-      a = Q[s-1] + cost_bernoulli(data[idx]) + beta;
-      if (a < val_min)
-      {
+    
+    for (int s=1;s < t;s++) {
+      //Range id(s,t);
+      a = Q[s-1] + cost_bernoullicpp( data[Range(s,t)] ) + beta;
+      
+      if (a < val_min) {
         val_min = a;
-        arg_min = s - 1;
+        arg_min = s-1;
       }
     }
     Q[t] = val_min;
     cp[t] = arg_min;
   }
   // backtracking
-  v = cp[n];
-  P.push_back(cp[n]);
+  v = cp[n-1];
+  P.push_back(cp[n-1]);
   
   while (v > 0)
   {
-    v = cp[v];
     P.push_back(cp[v]);
-    
+    v = cp[v];
   }
-  P.sort();
-  P.erase(P.end());
+  std::reverse(P.begin(),P.end());
+  P.erase(P.begin());
   
-  List L = List::create(Named("changepoints") = P , _["globalCost"] = Q[n] - P.length()*beta);
+  
+  List L = List::create(Named("changepoints") = P , _["globalCost"] = Q[int(n)] - double(P.length())*beta);
   return L;
 }
 
 /*** R
+library(purrr)
+data <- dataSeries(K=4,n=100)
+data=as.numeric(data)
+K1 = myOP(data)
+
+K2 = myOPcpp(data)
+
+#cost_bernoulli(data)
+
 */
