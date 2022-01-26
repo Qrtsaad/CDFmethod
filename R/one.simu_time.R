@@ -9,8 +9,6 @@ stock_v <- function(simu)
   return(vec)
 }
 
-
-
 one.simu_time_ocOP <- function(K, n)
 {
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
@@ -45,12 +43,26 @@ one.simu_time_PELT <- function(K, n)
 }
 
 
-
-one.simu_time_CUSUM <- function(data)
+one.simu_time_CUSUM <- function(K,n)
 {
-  start_time <- Sys.time()
-  print("En cours")
-  end_time  <- Sys.time()
+  data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
+  sim <- as.numeric(system.time(cusum(data))[3])
   
-  return(unclass(end_time - start_time)[1])
+  return(sim)
+}
+
+one.simu_time_TRV <- function(K,n)
+{
+  data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
+  sim <- as.numeric(system.time(print("En cours"))[3])
+  
+  return(sim)
+}
+
+one.simu_time_EMV <- function(K,n)
+{
+  data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
+  sim <- as.numeric(system.time(tau_EMV(data, tresh=0.5))[3])
+  
+  return(sim)
 }
