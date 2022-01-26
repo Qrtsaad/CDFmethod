@@ -11,9 +11,9 @@
 #' @export
 #'
 #' @examples
-#' myOP(c(0,0,0,1,1,1,1), beta = 0.00001)
-#' myOP(c(rnorm(50, mean = 0, sd = 0), rnorm(50, mean = 10, sd = 0)))
-#' myOP(data_generator(25, chpts = 10, means = c(20,0), type = "gauss"), beta = 5)
+#' onechangeOP(c(0,0,0,1,1,1,1), beta = 0.00001)
+#' onechangeOP(c(rnorm(50, mean = 0, sd = 1), rnorm(50, mean = 10, sd = 1)))
+#' onechangeOP(data_generator(25, chpts = 10, means = c(20,0), type = "gauss"), beta = 5)
 onechangeOP <- function(data, cost = "bernoulli", beta = best_beta(data), eps = 1e-6)
 {
   allowed.cost <- c("gauss", "poisson", "negbin", "bernoulli")
