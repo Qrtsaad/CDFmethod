@@ -1,11 +1,5 @@
 prec_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   tp <- mat[2,2]
   fp <- mat[2,1]
   
@@ -15,12 +9,6 @@ prec_score <- function(mat)
 
 rec_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   tn <- mat[1,1]
   tp <- mat[2,2]
   
@@ -36,12 +24,6 @@ tpr_score <- function(mat){
 
 sensi_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   tp <- mat[2,2]
   fn <- mat[1,2]
   
@@ -51,12 +33,6 @@ sensi_score <- function(mat)
 
 specif_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   tn <- mat[1,1]
   fp <- mat[2,1]
   
@@ -67,12 +43,6 @@ specif_score <- function(mat)
 
 f1_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   precision <- prec_score(mat)
   recall <- rec_score(mat)
   
@@ -83,12 +53,6 @@ f1_score <- function(mat)
 
 acc_score <- function(mat)
 {
-  ###########
-  # TN # FN #
-  ###########
-  # FP # TP #
-  ###########
-  
   tn <- mat[1,1]
   fn <- mat[1,2]
   fp <- mat[2,1]
@@ -144,6 +108,7 @@ compute_mf <- function(v_ver,v_est, score = "f1")
   ###########
   # FP # TP #
   ###########
+  
   confusionmatrix[1,1] <- sum((v_ver == FALSE) & (v_est == FALSE)) #vrais negatfs
   confusionmatrix[1,2] <- sum((v_ver == TRUE) & (v_est == FALSE)) #faux négatifs
   confusionmatrix[2,1] <- sum((v_ver == FALSE) & (v_est == TRUE)) #faux positifs
