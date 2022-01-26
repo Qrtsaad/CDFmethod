@@ -1,4 +1,4 @@
-#' one change Optimal Partitioning
+#' onechange Optimal Partitioning
 #'
 #'
 #' @description Optimal Partitioning Algorithm for time series with 0/1 changepoint
@@ -7,7 +7,7 @@
 #' @param cost type of my cost (gauss or poisson)
 #' @param beta penalty value
 #'
-#' @return a vector of changepoints, a number for the complexity (cost of computations)
+#' @return a changepoint, a global cost
 #' @export
 #'
 #' @examples
@@ -91,7 +91,7 @@ onechangeOP <- function(data, cost = "bernoulli", beta = best_beta(data), eps = 
 #' @param cost type of my cost (gauss or poisson)
 #' @param beta penalty value
 #'
-#' @return a vector of changepoints, a number for the complexity (cost of computations)
+#' @return a vector of changepoints, a global cost
 #' @export
 #'
 #' @examples
