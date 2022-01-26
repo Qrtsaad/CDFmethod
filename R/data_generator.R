@@ -1,4 +1,4 @@
-#' Data Generator
+#' Data Series
 #'
 #'
 #'@description Generating data from a bernoulli model = changepoint relative positions + parameters + type of cost
