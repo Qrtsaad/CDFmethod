@@ -124,7 +124,7 @@ print(c("class = ",CSM$y_pred))
 
 
 
-nb_test = 50
+nb_test = 500
 p1 = runif(nb_test,min=0.1,max=0.9)
 p2 = runif(nb_test,min=0.1,max=0.9)
 id = rbinom(nb_test,size=1,prob=0.5)
@@ -145,8 +145,22 @@ print(compute_mf(Y_true,Y_pred,score="accuracy"))
 #CompEst(mat_X,multi_cusum)
 
 
-n_seq = seq(from=200,to=20000,by=200)
-mini_bench(n_seq)
+#n_seq = seq(from=200,to=20000,by=200)
+#mini_bench(n_seq)
 
+library(randomForest)
+
+set.seed(100)
+train = sample(nrow(mat_X), 0.7*nrow(mat_X), replace = FALSE)
+TrainSet = mat_X[train,]
+ValidSet = mat_X[-train,]
+
+Y_train = Y_true[train]
+Y_test = Y_true[-train]
+RDM_forest = randomForest(as.factor(Y_train) ~. ,data=TrainSet,ntree=500)
+
+Y_pred_RF = predict(RDM_forest,ValidSet,type="class")
+
+print(compute_mf(Y_test,Y_pred_RF,score="accuracy"))
 
  
