@@ -15,7 +15,7 @@
 #' onechangePELT(c(rnorm(50, mean = 0, sd = 1), rnorm(50, mean = 10, sd = 1)))
 #' onechangePELT(data_generator(25, chpts = 10, means = c(20,0), type = "gauss"), beta = 5)
 
-onechangePELT <- function(data, cost = "bernoulli", beta = best_beta(data), eps = 1e-6)
+onechangePELT <- function(data, cost = "bernoulli", beta = best_beta(data))
 {
   allowed.cost <- c("gauss", "poisson", "negbin", "bernoulli")
   if(!cost %in% allowed.cost){stop('type must be one of: ', paste(allowed.cost, collapse=", "))}
@@ -106,7 +106,7 @@ onechangePELT <- function(data, cost = "bernoulli", beta = best_beta(data), eps 
 #' myPELT(c(rnorm(50, mean = 0, sd = 1), rnorm(50, mean = 10, sd = 1)), beta = 1)
 #' myPELT(data_generator(25, chpts = c(10,20), means = c(20,0,20), type = "gauss"), beta = 5)
 
-myPELT <- function(data, cost = "bernoulli", beta = best_beta(data), eps = 1e-6)
+myPELT <- function(data, cost = "bernoulli", beta = best_beta(data))
 {
   allowed.cost <- c("gauss", "poisson", "negbin", "bernoulli")
   if(!cost %in% allowed.cost){stop('type must be one of: ', paste(allowed.cost, collapse=", "))}
