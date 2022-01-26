@@ -1,3 +1,19 @@
+multi_EMV <- function(fun = tau_EMV, mat_X){
+  
+  #fun doit prendre pour valeur:
+  #tau_EMV _ou_ tau_EMV_K_unif _ou_ tau_EMV_K_norm
+  
+  nb_test = DIM(mat_X)[1]
+  y_pred = rep(NA,nb_test)
+  
+  for (j in 1:nb_test) {
+    result = fun(data = mat_X[j,], tresh = 0.2, K = 100)
+    
+    y_pred[j] = result$Fraude
+  }
+  return(list("y_pred"= y_pred))
+}
+
 multi_cusum = function(mat_X,a=0.05) {
   nb_test = DIM(mat_X)[1]
   y_pred = tau = p_value = times = rep(NA,nb_test)
