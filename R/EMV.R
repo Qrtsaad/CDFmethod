@@ -1,6 +1,6 @@
 library(tidyverse)
 
-multi_EMV <- function(fun = tau_EMV, mat_X){
+multi_EMV <- function(mat_X, fun = tau_EMV){
   
   #fun doit prendre pour valeur:
   #tau_EMV _ou_ tau_EMV_K_unif _ou_ tau_EMV_K_norm
