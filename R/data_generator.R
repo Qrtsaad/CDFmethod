@@ -22,5 +22,5 @@ dataSeries <- function(K = 5, n = 100, probs = sample(1:9,K)/10)
     data <- c(data, rbernoulli(n, p = probs[k]))
   }
     
-  return(data)
+  return(as.numeric(data))
 }
