@@ -10,22 +10,23 @@ double cost_bernoulli(NumericVector v)
   
   if(mean(v) == 0 | 1-mean(v)==0 ) {
     res = 0;
-    } 
+  } 
   else {
     res = -(a*log(a/n) + b*log(1-a/n));
-    }
+  }
   return res;
 }
 
-
 // [[Rcpp::export]]
-List myOPcpp(NumericVector data, double beta) {
-    
+List myOPcpp(NumericVector data) {
+  
   unsigned short int n = data.length();
   NumericVector Q(n);
   IntegerVector cp(n), P(0);
   double val_min = 0, a = 0;
   int arg_min = 0, v = 0;
+  
+  double beta = 2*var(data)*log(n);
   
   
   for(int t=2 - 1;t <= n - 1;t++) {
@@ -45,17 +46,17 @@ List myOPcpp(NumericVector data, double beta) {
     Q[t] = val_min;
     cp[t] = arg_min;
   }
-// backtracking
+  // backtracking
   v = cp[n];
-  P.push_front(cp[n]);
+  P.push_back(cp[n]);
   
   while (v > 0)
   {
     v = cp[v];
-    P.push_front(cp[v]);
+    P.push_back(cp[v]);
     
   }
-  std::reverse(P.begin(),P.end());
+  P.sort();
   P.erase(P.end());
   
   List L = List::create(Named("changepoints") = P , _["globalCost"] = Q[n] - P.length()*beta);
@@ -63,5 +64,4 @@ List myOPcpp(NumericVector data, double beta) {
 }
 
 /*** R
-
 */
