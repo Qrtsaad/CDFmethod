@@ -1,7 +1,7 @@
 #' Best Beta
 #'
 #'
-#' @description Best parameter for penalty
+#' @description Best parameter for penalty, this penalty is from Yao & Au (1989)
 #'
 #' @param data vector of data points
 #'
@@ -20,7 +20,7 @@ best_beta <- function(data)
 #' BIC Beta
 #'
 #'
-#' @description BIC penalty
+#' @description Bayesian Information Criterion penalty
 #'
 #' @param data vector of data points
 #'
