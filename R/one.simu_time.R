@@ -1,3 +1,16 @@
+#' stock_v
+#'
+#'
+#' @description This function allows us to stock in a vector data that came from a set of simulations with the mclapply function
+#'
+#'
+#' @param simu a vector of simulations
+#'
+#' @return a vector of simulations
+#' @export
+#'
+#' @examples
+#' print("Not necessary")
 stock_v <- function(simu)
 {
   n <- length(simu)
