@@ -19,7 +19,7 @@ double cost_bernoulli(NumericVector v)
 
 
 // [[Rcpp::export]]
-List myOPcpp(NumericVector data, double beta, double eps) {
+List myOPcpp(NumericVector data, double beta) {
     
   unsigned short n = data.length();
   NumericVector Q(n);
