@@ -69,7 +69,7 @@ List onechangeOPcpp(NumericVector data) {
     else {rupt = arg_min;} 
     //Si on detecte le min en 2 alors c'est des données sans ruptures car ca impliquerait que l'on ai un saut en 1 or c'est la premiere donnée
       
-  List L = List::create(Named("tau") = rupt , _["globalCost"] = Q[n] - beta);
+  List L = List::create(Named("tau") = rupt , _["globalCost"] = Q[n-1] - beta);
   return L;
 }
 
@@ -114,7 +114,7 @@ List myOPcpp(NumericVector data) {
   P.erase(P.begin());
   
   
-  List L = List::create(Named("changepoints") = P , _["globalCost"] = Q[int(n)] - double(P.length())*beta);
+  List L = List::create(Named("changepoints") = P , _["globalCost"] = Q[n-1] - double(P.length())*beta);
   return L;
 }
 
