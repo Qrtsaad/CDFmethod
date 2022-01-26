@@ -1,4 +1,4 @@
-#' one change Pruned Exact Linear Time
+#' onechange Pruned Exact Linear Time
 #'
 #'
 #' @description Pruned Exact Linear Time Algorithm for time series with 0/1 changepoint
@@ -7,13 +7,13 @@
 #' @param cost a number
 #' @param beta a number
 #'
-#' @return a vector of changepoints, global cost
+#' @return a changepoint, a global cost
 #' @export
 #'
 #' @examples
-#' myOP(c(0,0,0,1,1,1,1), beta = 0.00001)
-#' myOP(c(rnorm(50, mean = 0, sd = 1), rnorm(50, mean = 10, sd = 1)))
-#' myOP(data_generator(25, chpts = 10, means = c(20,0), type = "gauss"), beta = 5)
+#' onechangePELT(c(0,0,0,1,1,1,1), beta = 0.00001)
+#' onechangePELT(c(rnorm(50, mean = 0, sd = 1), rnorm(50, mean = 10, sd = 1)))
+#' onechangePELT(data_generator(25, chpts = 10, means = c(20,0), type = "gauss"), beta = 5)
 
 onechangePELT <- function(data, cost = "bernoulli", beta = best_beta(data), eps = 1e-6)
 {
@@ -98,7 +98,7 @@ onechangePELT <- function(data, cost = "bernoulli", beta = best_beta(data), eps 
 #' @param cost a number
 #' @param beta a number
 #'
-#' @return a vector of changepoints, global cost
+#' @return a vector of changepoints, a global cost
 #' @export
 #'
 #' @examples
