@@ -29,7 +29,7 @@ List myOPcpp(NumericVector data, double beta) {
   
   
   for(int t=2 - 1;t <= n - 1;t++) {
-    Range idx(0,t);
+    Range idx(1,t);
     val_min = cost_bernoulli(data[idx]);
     arg_min = 0;
     for (int s=2 - 1;s <= t - 1;s++)
