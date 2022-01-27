@@ -157,6 +157,6 @@ RDM_forest = randomForest(as.factor(Y_train) ~. ,data=TrainSet,ntree=500)
 
 Y_pred_RF = predict(RDM_forest,ValidSet,type="class")
 
-print(compute_mf(Y_test,Y_pred_RF,score="accuracy"))
+#print(compute_mf(Y_test,Y_pred_RF,score="accuracy"))
 
  
