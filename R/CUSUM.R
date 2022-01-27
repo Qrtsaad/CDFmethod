@@ -53,12 +53,12 @@ cusum = function(X,a=0.05) {
               ))
 }
 
-multi_cusum = function(mat_X,a=0.05,CPP=FALSE) {
+multi_cusum = function(mat_X,a=0.05,CPPbool=FALSE) {
   nb_test = DIM(mat_X)[1]
   y_pred = tau = p_value = times = rep(NA,nb_test)
 
   for (j in 1:nb_test) {
-    if(CPP){
+    if(CPPbool==TRUE){
       CSM = cusumcpp(mat_X[j,],a)
       y_pred[j] = CSM$y_pred
       tau[j] = CSM$tau
@@ -70,7 +70,7 @@ multi_cusum = function(mat_X,a=0.05,CPP=FALSE) {
       tau[j] = CSM$tau
     }
   }
-  if(CPP) return(list("y_pred"=y_pred,"tau"=tau))
+  if(CPPbool) return(list("y_pred"=y_pred,"tau"=tau))
   else return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau#,"times"=times
   ))
 }
