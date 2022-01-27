@@ -333,7 +333,7 @@ simu_CSM <- function(nsimu = 10,  tau_choice = TRUE){
 }
 
 
-constuct_data = function(n=2000,tau_choice = TRUE, chosen_tau, nsimu) {
+constuct_data2 = function(n=2000,tau_choice = TRUE, chosen_tau, nsimu) {
   
   p1 = runif(nsimu,min=0.1,max=0.9)
   p2 = runif(nsimu,min=0.1,max=0.9)
