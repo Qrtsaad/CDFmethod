@@ -1,5 +1,5 @@
 #source(file = "scorefct.R")
-#library(GuessCompx)
+library(GuessCompx)
 
 DIM = function(x) if(is.null(dim(x))) length(x) else dim(x)[1]
 
@@ -53,26 +53,32 @@ cusum = function(X,a=0.05) {
               ))
 }
 
-multi_cusum = function(mat_X,a=0.05,CPPbool=FALSE) {
+multi_cusum = function(mat_X,a=0.05) {
   nb_test = DIM(mat_X)[1]
-  y_pred = tau = p_value = times = rep(NA,nb_test)
-
+  y_pred = tau = p_value = rep(NA,nb_test)
+  #times = rep(NA,nb_test)
+  
   for (j in 1:nb_test) {
-    if(CPPbool==TRUE){
-      CSM = cusumcpp(mat_X[j,],a)
-      y_pred[j] = CSM$y_pred
-      tau[j] = CSM$tau
-    }
-    else {
       CSM = cusum(mat_X[j,],a)
       p_value[j] = CSM$p_value
       y_pred[j] = CSM$y_pred
       tau[j] = CSM$tau
-    }
   }
-  if(CPPbool) return(list("y_pred"=y_pred,"tau"=tau))
-  else return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau#,"times"=times
-  ))
+
+  return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau))
+}
+
+multi_cusumcpp = function(mat_X,a=0.05) {
+  nb_test = DIM(mat_X)[1]
+  y_pred = tau = p_value = times = rep(NA,nb_test)
+  
+  for (j in 1:nb_test) {
+      CSM = cusumcpp(mat_X[j,],a)
+      p_value[j] = CSM$p_value
+      y_pred[j] = CSM$y_pred
+      tau[j] = CSM$tau
+  }
+  return(list("y_pred"=y_pred,"tau"=tau,"p_value"=p_value))
 }
 
 
