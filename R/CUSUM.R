@@ -1,5 +1,4 @@
 #source(file = "scorefct.R")
-library(tictoc)
 library(GuessCompx)
 
 DIM = function(x) if(is.null(dim(x))) length(x) else dim(x)[1]
