@@ -1,3 +1,7 @@
+#source(file = "scorefct.R")
+library(tictoc)
+library(GuessCompx)
+
 DIM = function(x) if(is.null(dim(x))) length(x) else dim(x)[1]
 
 constuct_data = function(n,tau,p1,p2) {
@@ -13,10 +17,10 @@ constuct_data = function(n,tau,p1,p2) {
 
 
 cusum = function(X,a=0.05) {
-  TIMER = as.numeric(Sys.time()) ####################
+  #TIMER = as.numeric(Sys.time()) ####################
   
-  l = 1/10
-  h = 9/10  # borne à définir (hypothèse : tau se trouve dans [l*n,h*n])
+  l = 9/100
+  h = 91/100  # borne à définir (hypothèse : tau se trouve dans [l*n,h*n])
   
     n = length(X)
     S = sigma_e = rep(0,n)
@@ -43,26 +47,35 @@ cusum = function(X,a=0.05) {
     else if(p_value <= a && p_value > 0) y_pred = 1
     else y_pred = 0
   
-  TIMER = as.numeric(Sys.time() - TIMER) #######################
+  #TIMER = as.numeric(Sys.time() - TIMER) #######################
   
   return(list('Tt'=Tt,'curveCSM'=curveCSM,'tau'=tau,'CSMmax'=CSMmax,'sigma_e'=sigma_e,
-              'T_stat'=T_stat,'p_value'=p_value,'y_pred'=y_pred,'time'= TIMER))
+              'T_stat'=T_stat,'p_value'=p_value,'y_pred'=y_pred#,'time'= TIMER
+              ))
 }
 
-multi_cusum = function(mat_X,a=0.05) {
+multi_cusum = function(mat_X,a=0.05,CPP=FALSE) {
   nb_test = DIM(mat_X)[1]
   y_pred = tau = p_value = times = rep(NA,nb_test)
 
   for (j in 1:nb_test) {
-    CSM = cusum(mat_X[j,],a)
-    
-    y_pred[j] = CSM$y_pred
-    p_value[j] = CSM$p_value
-    tau[j] = CSM$tau
-    times[j] = CSM$time
+    if(CPP){
+      CSM = cusum(mat_X[j,],a)
+      p_value[j] = CSM$p_value
+      y_pred[j] = CSM$y_pred
+      tau[j] = CSM$tau
+    }
+    else {
+      CSM = cusumcpp(mat_X[j,],a)
+      y_pred[j] = CSM$y_pred
+      tau[j] = CSM$tau
+    }
   }
-  return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau,"times"=times))
+  if(CPP) return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau#,"times"=times
+  ))
+  else return(list("y_pred"=y_pred,"tau"=tau))
 }
+
 
 mini_bench = function(n_seq,tau=-42) {
   n_bench = length(n_seq)
