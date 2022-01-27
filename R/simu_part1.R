@@ -4,7 +4,25 @@ dataSeries2 <- function(n0 = 100, n1 = 100, p0 = 0.3, p1 = 0.8){
   return(c(s1,s2))
 }
 
-
+#' simu_EMV
+#'
+#'
+#' @description simulates nsimu samples and applies the simu_EMV method to each of them.
+#' 
+#'
+#' @param nsimu number simulations
+#' @param tresh the treshold parameter for simu_EMV
+#' @param tau_choice tau_choice wether you want to chose or not the place at which the fraud will occur for each row of the matrix
+#' 
+#' @return a tibble sumarizing how well did the model run. Each column corresponds to the performance metrics, with 19 rows beeing the places when the fraud event occured (at 100, 200, ..., 1800, 1900).
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' simu_EMV(nsimu = 50)
+#' 
+#' 
 simu_EMV <- function(nsimu = 10, tresh = 0.2, tau_choice = TRUE){
   
   compteur <- 1
@@ -71,7 +89,26 @@ simu_EMV <- function(nsimu = 10, tresh = 0.2, tau_choice = TRUE){
   
 }
 
-
+#' simu_EMV_K
+#'
+#'
+#' @description simulates nsimu samples and applies the simu_EMV_K method to each of them.
+#' 
+#'
+#' @param nsimu number simulations
+#' @param tresh the treshold parameter for simu_EMV_K
+#' @param K the K parameter for simu_EMV_K
+#' @param tau_choice tau_choice wether you want to chose or not the place at which the fraud will occur for each row of the matrix
+#' 
+#' @return a tibble sumarizing how well did the model run. Each column corresponds to the performance metrics, with 19 rows beeing the places when the fraud event occured (at 100, 200, ..., 1800, 1900).
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' simu_EMV_K(nsimu = 50)
+#' 
+#' 
 simu_EMV_K <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   
   compteur <- 1
@@ -137,7 +174,26 @@ simu_EMV_K <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   
 }
 
-
+#' simu_EMV_K_unif
+#'
+#'
+#' @description simulates nsimu samples and applies the simu_EMV_K_unif method to each of them.
+#' 
+#'
+#' @param nsimu number simulations
+#' @param tresh the treshold parameter for simu_EMV_K_unif
+#' @param K the K parameter for simu_EMV_K_unif
+#' @param tau_choice tau_choice wether you want to chose or not the place at which the fraud will occur for each row of the matrix
+#' 
+#' @return a tibble sumarizing how well did the model run. Each column corresponds to the performance metrics, with 19 rows beeing the places when the fraud event occured (at 100, 200, ..., 1800, 1900).
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' simu_EMV_K_unif(nsimu = 50)
+#' 
+#'  
 simu_EMV_K_unif <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   
   compteur <- 1
@@ -201,7 +257,26 @@ simu_EMV_K_unif <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   
 }
 
-
+#' simu_EMV_K_norm
+#'
+#'
+#' @description simulates nsimu samples and applies the EMV_K_norm method to each of them.
+#' 
+#'
+#' @param nsimu number simulations
+#' @param tresh the treshold parameter for EMV_K_norm
+#' @param K the K parameter for EMV_K_norm
+#' @param tau_choice tau_choice wether you want to chose or not the place at which the fraud will occur for each row of the matrix
+#' 
+#' @return a tibble sumarizing how well did the model run. Each column corresponds to the performance metrics, with 19 rows beeing the places when the fraud event occured (at 100, 200, ..., 1800, 1900).
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' simu_EMV_K_norm(nsimu = 50)
+#' 
+#' 
 simu_EMV_K_norm <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice=TRUE){
   
   compteur <- 1
@@ -265,7 +340,26 @@ simu_EMV_K_norm <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice=TRUE){
   
 }
 
-
+#' simu_CSM
+#'
+#'
+#' @description simulates nsimu samples and applies the cusum method to each of them.
+#' 
+#'
+#' @param nsimu number simulations
+#' @param tau_choice wether you want to chose or not the place at which the fraud will occur for each row of the matrix
+#' 
+#'
+#' 
+#' @return a tibble sumarizing how well did the model run. Each column corresponds to the performance metrics, with 19 rows beeing the places when the fraud event occured (at 100, 200, ..., 1800, 1900).
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' simu_CSM(nsimu = 50)
+#' 
+#' 
 simu_CSM <- function(nsimu = 10,  tau_choice = TRUE){
   
   compteur <- 1
