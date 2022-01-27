@@ -1,5 +1,5 @@
 #source(file = "scorefct.R")
-library(GuessCompx)
+#library(GuessCompx)
 
 DIM = function(x) if(is.null(dim(x))) length(x) else dim(x)[1]
 
