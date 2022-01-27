@@ -1,0 +1,1244 @@
+
+# Detection de fraudes dans une série temporelle.
+# Pablo Le Guern-Fiallo, Nadir Tahir, Saâd Qriouet
+# Encadré par : Vincent Runge
+# Master 2 Data Science, UEVE
+
+
+
+# Chargement des librairies
+```{r}
+#devtools::install_github("Qrtsaad/CDFmethod", force = TRUE)
+#library(CDFmethod)
+library("parallel")
+library(ggplot2)
+library(lattice)
+library(aricode)
+library(reshape)
+library(purrr)
+library(tibble)
+library(microbenchmark)
+library(tidyverse)
+library(randomForest)
+library(GuessCompx)
+```
+
+
+
+# I/ Introduction
+
+## 1. Présentation du problème
+
+Lors de ce projet nous arborderons un problème populaire de l'étude de séries temporelles : La détection de rupture. La détection de rupture pour être explicitée ainsi : c'est un ensemble de méthodes statistiques ayant pour but de détecter la ou les ruptures et estimer sa position dans une série. La rupture est définie comme étant la position à laquelle le processus, supposé aléatoire, change de loi. Il peut y avoir différent type de rupture comme un changement en espérance ou en variance d'une loi donnée, ou plus rarement un changement complet dans la nature de la loi. 
+
+Il y a à ce jour de nombreuses applications à cette théorie comme en Finance pour détecter un changement de saisonnalité pour le prix d'une action par exemple, ou encore dans le cadre d'un contrôle qualité industriel/ Monitoring, ou biologie dans la dynamique des espèces etc...
+
+Voici une illustration de rupture dans une série temporelle : 
+```{r}
+# img1_path <- "rupture.png"
+# img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+# attr(img1, "info")
+# include_graphics(img1_path)
+
+x1 = rnorm(50,mean=0)
+x2 = rnorm(50,mean=3)
+x3 = rnorm(50,mean=6)
+x4 = rnorm(50,mean=-7)
+x5 = rnorm(50,mean=-18)
+
+X = c(x1,x2,x3,x4,x5)
+
+plot(X,type='l',xlab="time")
+abline(v=50,col='red')
+abline(v=100,col='red')
+abline(v=150,col='red')
+abline(v=200,col='red')
+
+grid()
+```
+
+
+## 2. Hypothèses
+
+Par la suite nous allons considérer un cadre restreint à notre étude heuristique avec plusieurs hypothèses de départ. Les séries temporelles que nous utiliserons seront des Processus de Bernoulli. Les données seront considérées indépendantes. Aussi notre étude se basera sur une détection dite "Offline" avec au départ 1 point de rupture puis plusieurs par la suite. 
+
+Rappelons la définition d'une rupture en $\tau$ pour un processus de Bernoulli de taille n
+$X_1 \approx Ber(p_1) \ si \  1 \leq t \leq \tau$
+$X_2 \approx Ber(p_2) \ si \  1 \leq \tau \leq \n$
+
+```{r}
+X = c(rbinom(40,1,0.2),rbinom(40,1,0.8))
+plot(X,type="l")
+```
+
+
+## 3. Process et outils utilisés 
+
+Notre objectif sera alors de considérer différents modèles sous ces conditions avec pour éléments de comparaison plusieurs métriques considérées que nous aborderons en partie III. Les modèles seront alors : la statisque de "CUSUM", 
+un algorithme glouton amélioré se basant sur l'estimation des paramètres par rapport de vraisemblance, le modèle "Optimal Partioning" et enfin le PELT (+ un modèle supervisé via RandomForest).
+
+Pour améliorer la vitesse et la précision de nos calculs nous avons choisis une fonction permettant de paralléliser les tâches via "mclapply" et une implémentation des méthodes en C++ via le package RCPP pour optimiser nos fonctions.
+
+
+
+
+\newpage
+
+
+# II/ Méthodes utilisées
+
+## 1. Estimation de probabilité de détection de fraude
+
+### A) Estimation par maximum de vraissemblance
+
+On note $X=(xi)_{1 \leq i \leq n}$, avec $n=2000$, notre échantillon d'observations indépendantes et identiquement distribuées.
+
+Notre problème étant de savoir si l'échantillon présente un temps $\tau$ de rupture à partir duquel le paramètre $p$ de la loi de Bernouilli change, nous devons considérer la comparaison entre deux modèles. 
+Le premier suppose que ce paramètre demeure constant, tandis que le second fait l'hypothèse de l'existance d'un temps $\tau$ tel que:
+
+$$(X_i)__{1\leq i\leq \tau} \sim_{iid} \mathcal B(p_0) $$
+et:
+
+$$ (X_i)__{\tau+1\leq i\leq n} \sim_{iid} \mathcal B(p_1)$$
+
+La log-vraissemblance pour chaque $x_i$, en supposant la valeur de $p$ constante, est donnée par l'expression suivante:
+
+$$log(\mathcal l_p(x_i)) =   log(p^{x_i}(1-p)^{1-x_i}) = x_i\ log(p/(1-p)) + log(1-p)$$
+
+On peut à partir de cela, pour tout $\tau\in \{1, ..., 2000 \}$ construire des estimateurs de maximum de vraissemblance pour nos paramètres $p$, $p_0$ et $p_1$, qui correspondent à la moyenne empirique de la série $X$ pour $\hat p$. On utilisera la même statistique, restreinte aux temps précédant $tau$ et à ceux suivant $\tau$ pour $\hat p_0$ et $\hat p_1$ respectivement.
+
+Ainsi, la log-vraissemblance pour tout $\tau \in \{1, ..., 2000 \}$ s'écrit:
+
+$$ log\mathcal L_X(\tau) = log(\prod_{i=1}^{tau}log(\mathcal l_{p_0}(x_i))\prod_{i=\tau+1}^{n}log(\mathcal l_{p_1}(x_i)))
+\\ = \tau log(1-\hat p_0)+ (n-\tau)log(1-\hat p_1)+log(\hat p_0 /(1-\hat p_0))\sum_{i=1}^\tau x_i\ + log(\hat p_1 /(1-\hat p_1))\sum_{i=\tau+1}^n x_i$$
+
+
+Avec cette expression analytique de la vraissemblance, nous pouvons rechercher le maximum en parcourant l'espace des tau candidats.
+
+#### a) Algorithme glouton
+- Notre première méthode de détection de fraude sera un algorithme glouton, qui testera chaque tau et calculera la position tau maximisant la vraissemblance. 
+
+Une fois ce tau trouvé, nous allons calculer les fréquences d'apparition de 1 sur les segments à gauche et à droite du $\tau$ détecté. Si ces valeurs correspondant aux estimations de $p_0$ et $p_1$ sur ces segments sont trop éloignées, l'algorithme conclut à une fraude. 
+Nous avons fixé pour valeur seuil pour cette décision: $seuil = 0.2$. 
+
+
+
+#### Algorithme d'approximation
+
+La méthode précédente permet d'être confiant quand au fait d'avoir de bonnes chances de détecter les fraudes à raison, mais de part sa nature d'algorithme glouton, le temps d'execution augmente rapidement avec le nombre de simulations. En effet, cette dernière parcoure l'entièreté de l'espace des $\tau$ candidats à chaque itération.
+
+Pour pallier à ce problème, nous avons implémenté des verisons d'approximation de cet algorithme, en recherchant les $\tau$ candidats dans un espace plus restreint.
+
+Nous avons donc commencé par ne considérer qu'un point sur $K$, et avons choisi une valeur pour ce paramètre permettant de faire un meilleur compromis entre performance et temps d'execution. Nous pourrons voir cela dans la partie simulations.
+
+Ensuite, nous avons choisi de construire deux modèles tirant aléatoirement $n/K$ valeurs de $\tau$ candidates parmis l'ensemble des possibilités.
+
+- Le premier échantillonne selon une loi uniforme sur l'espace des candidats
+- Le second le fait selon une loi normale, de paramètres $\mu = 1000, \sigma = 500$
+
+
+B) CUSUM
+
+La statistique de CUSUM est une métrique introduite en 1954 dans un célèbre article de l'Université de Cambrige intitulé "Biometrika". La support de ce modèle est un article rédigé par Benjamin Cortese et intitulé "Change Point Detection and Estimation in Sequences of Dependent Random Variables Dependent Random Variable". Elle a pour buter de classifier s'il y a une rupture ou non selon une statistique de Test définie après et où elle a lieu. Pour un processus de Bernoulli CUSUM peut être définie ainsi : 
+
+$CUSUM_t = \frac{S_t}{\sqrt{n}}$ où $S_t = \sum_{j=1}^{t} X_j - \frac{t}{n}\sum_{j=1}^{n}$
+
+On définie maintenant une quantité important par la suite qui est $T_t = \frac{CUSUM_t}{\hat{\sigma_t}}$ où $\hat{\sigma_t{}} = \hat{p}(1-\hat{p})\frac{t}{n}(1-\frac{t}{n})$ représentant la variance au cours du temps avec $\hat{p}$ l'estimateur classique par MLE du paramètre d'une loi de Bernoulli.
+
+
+```{r} 
+p1 = 0.2
+p2 = 0.8
+tau = 1000
+n1 = 1000
+n2 = 1000
+x1 = rbinom(n1,1,p1)
+x2 = rbinom(n2,1,p2)
+X = c(x1,x2)
+
+CSM = cusum(X)
+plot(CSM$curveCSM,type='l',main="CUSUM for p1 = 0.2 and p = 0.8")
+abline(v=CSM$tau,col='red')
+abline(v=tau,col='green')
+```
+
+```{r}
+p1 = 0.5
+p2 = 0.55
+tau = 1000
+n1 = 1000
+n2 = 1000
+x1 = rbinom(n1,1,p1)
+x2 = rbinom(n2,1,p2)
+X = c(x1,x2)
+
+CSM = cusum(X)
+plot(CSM$curveCSM,type='l',main=c("CUSUM for p1 = 0.5 and p2 = 0.6"))
+abline(v=CSM$tau,col='red')
+abline(v=tau,col='green')
+```
+On remarque que l'allure de notre CUSUM est moins régulière lorsque la différence entre P1 et p2 se réduit. Ici la droite rouge représente la valeur estimé par la métrique de test que nous allons expliciter. 
+
+Pour trouver la position du $\tau$ l'estimateur proposé dans un article deMichael W. Robbins, Robert B. Lund, Colin M. Gallagher, and QiQi Lu. "Change-points in the north atlantic tropical cyclone record" est le suivant :
+$\hat{\tau} = max_{1\leq t \leq n} \frac{|CUSUM_t|}{\hat{\sigma_t}}$
+
+Cependant notre problème de base étant la classification de fraude ou non dans notre série, il est nécessaire d'être plus rigoureux en définissant un Test statistique avec $H0 : x_i \ idd \ \forall i$ et $H1 : \exists \tau$
+
+Pour se faire une statistique de Test est proposée dans l'article cité ci-dessus tel que $T_{max}^2 = max_{nl \leq t \leq nh} T_t^2 \rightarrow sup_{l \leq \eta \leq h} \frac{B^2(\eta)}{\eta (1-\eta)}$
+
+Où B représente un pont Brownien sur l'intervalle $[0,1]$ comme nous avons pu l'observé dans le graphique précédent.
+Cependant dans l'article la définition de l'intervalle de Test idéal $[l,h]$ n'est pas explicité : "For discussion on the choice of l and h, see Miller and Siegmund [26]". Nous n'avons pas pu trouvé dans cet article une définition formelle de celui et avons donc arbitrairement selectionné l et h comme étant $l = \frac{9}{100}n, h = \frac{91}{100}n$
+Cette intervalle est nécessaire car notre statistique de Test à tendance à croître au borne [1,n] très rapidement quand n tend vers +Inf ce qui biaise notre recherche du maximum pour tau (cf article [34]). 
+
+Cependant il est nécessaire de définir une p_value pour notre statistique de Test dont une approximation est donnée dans le premier article cité. 
+
+$Pr(sup_{l \leq \eta \leq h} \frac{B^2(\eta)}{\eta (1-\eta)} \geq T) \approx (\frac{Te^{-T}}{2\pi})^{\frac{1}{2}}[(1-\frac{1}{T})log(\frac{(1-l)h}{(1-h)l}) + \frac{4}{T} + O(\frac{1}{T^2})]$
+
+Pour $\alpha = 0.05$
+
+```{r}
+p1 = 0.3
+p2 = 0.7
+tau = 1000
+n1 = 1000
+n2 = 1000
+x1 = rbinom(n1,1,p1)
+x2 = rbinom(n2,1,p2)
+X = c(x1,x2)
+
+CSM = cusum(X)
+plot(CSM$Tt,type='l',main="CUSUM for p1 = 0.4 and p2 = 0.7")
+abline(v=CSM$tau,col='red')
+abline(v=tau,col='green')
+print(c(p1,p2,"diff",abs(p1-p2)))
+print(c("p_value = ", CSM$p_value))
+print(c("tau = ",CSM$tau))
+print(c("class = ",CSM$y_pred))
+```
+Cependant notre algorithme est mis en difficulté quand la différence en p1 et p2 est proche de 0 ou 1. Prenon maintenant un exemple ou p1 = p2
+```{r}
+p1 = 0.3
+p2 = p1
+tau = 800
+n1 = 800
+n2 = 1200
+x1 = rbinom(n1,1,p1)
+x2 = rbinom(n2,1,p2)
+X = c(x1,x2)
+
+CSM = cusum(X)
+plot(CSM$Tt,type='l',main="CUSUM for p1 = 0.3 = p2")
+abline(v=CSM$tau,col='red')
+abline(v=tau,col='green')
+print(c(p1,p2,"diff",abs(p1-p2)))
+print(c("p_value = ", CSM$p_value))
+print(c("tau = ",CSM$tau))
+print(c("class = ",CSM$y_pred))
+```
+Notre classification reste bonne si on a "0" pour "aucune rupture" et donc le tau estimé par CUSUM est nécessairement faux.
+
+
+## 2. Nombre de changement de fréquences inconnu
+
+### A) Présentation du problème d'Optimisation
+
+Le but principal de notre sujet est l'étude d'un problème d'analyse de séries temporelles.
+
+
+Un des problèmes rencontrés est que la taille des données d'une série est généralement très grande (de l'ordre de $10^6-10^9$), et par conséquent nous rencontrons des difficultés pour lire et analyser les données.
+
+
+Nous allons donc réaliser une réduction de dimension (projeter nos données dans un ensemble beaucoup plus petit). Ici, nous voulons par exemple passer de $\mathbb{N}^n$ à $\mathbb{R}^m$ avec $n \gg m$.
+
+
+La réduction de dimension que l'on réalise est la détection de ruptures.
+
+Ainsi la detection de ruptures peut par exemple être appliquée aux domaines de la génomique ou de la finance pour les problèmes suivants :
+
+- Génomique : Detection de ruptures dans le nombre de copies de genes ou dans la structure compositionnelle du génome.
+
+- Finance : Detection de ruptures dans la volatilité des séries temporelles.
+
+
+Dans le cas de la génomique, nous voulons faire des lectures le long du génome. Le problème est que nous ne pouvons pas regarder les données "à la main" à cause du grand nombre de données. Pour cela, nous allons devoir utiliser un algorithme qui va analyser les morceaux de données qui nous intéressent.
+
+
+Finalement, nous avons un nombre fixé de données et un nombre de données de moyenne qui expliquent nos données.
+
+
+Notre problème est donc de regrouper les données en groupes $ \{y_{\tau_i + 1},...,y_{\tau_{i+1}} \}, i = 0,...,k $ appelés $\textbf{segments}$.
+
+
+Dans ce problème nous avons deux paramètres inconnus : le $\textbf{nombre k de ruptures}$ et $\textbf{leurs positions} (0 = \tau_0 < \tau_1 < ... < \tau_k < \tau_{k+1} = n)$
+
+
+Pour répondre à ce problème nous allons réaliser une minimisation qui contiendra 3 étapes :
+Tout d'abord le choix d'un modèle de données, ensuite le choix d'un critère statistique et pour finir, le choix d'un algorithme
+
+
+
+### B) Un problème de vraisemblance pénalisée
+
+
+
+Nous cherchons à minimiser la quantité suivante :
+$$Q_n = \min_{\bar{\tau} \in S_n} \sum_{i=0}^{k} C(y_{\tau_{i}+1:\tau_{i+1}}), $$
+
+avec : 
+$$C(y_{a:b}) = min_{\theta} \sum_{i=a}^{b}\gamma(y_i, \theta)  $$
+est la fonction de coût, $\gamma$ la décomposition de la vraisemblance basée en fonction du modèle, $S_n = \{ \bar{\tau} \in \mathbb{N}^{k+2}, 0 = \tau_0<\tau_1<...<\tau_k<\tau_{k+1}=n \}$, et $\bar{\tau}$ le vecteur de ruptures.
+
+
+Dans ce projet, nous allons nous intérésser à des modèles de Bernoulli, nous avons calculés la fonction de coût associé dans le fichier annexe. Nous avons également calculé la fonction de coût associé aux modèles gaussien, de poisson et binomiale négative.
+
+
+
+
+Pour le choix d'un critère statistique, nous avons deux possibilités : la fonction de coût pénalisée par $\beta > 0$ et le modèle de taille fixé K
+
+
+$\textbf{Fonction de coût pénalisée par beta :}$
+
+Nous considérons la fonction de coût suivante :
+$$Q_n(\beta) = \min_{\hat{\tau}\ in S_n} [\sum_{i=0}^{k} C(y_{\tau_{i}+1:\tau_{i+1}})+\beta], \beta>0$$
+
+Ici, nous faisons le choix de la pénalité $\beta$ suivante :
+$$\beta = 2\hat{\sigma}^2\log(n) $$
+(cf Yao $\&$ Au (1989))
+
+
+$\underline{\textbf{Remarque :}}$
+
+Ce résultat est justifié dans le cadre asymptotique
+
+
+D'autres fonctions de pénalité sont utilisées comme le critère d'information d'Akaike (connu sous le nom d'AIC) avec $\beta = 2p$, où p est le nombre de paramètres introduits en ajoutant une rupture.
+
+Nous pouvons aussi utiliser le critère d'information de Schwartz (connu sous le nom de BIC) avec $\beta = 2 \times p \times \log(n)$.
+
+
+$\textbf{Modèle de taille fixé K :}$
+
+Nous considérons la fonction de coût suivante :
+$$Q_n^K = \min_{\hat{\tau}\ in S_n} \sum_{i=0}^{K} C(y_{\tau_{i}+1:\tau_{i+1}})$$
+
+Ici, le but est de determiner le bon entier K qui vaut :
+$$ \min_{K = 1,...,M} \{ Q_{n}^{K} + Penalty(K) \} $$
+
+$\underline{\textbf{Remarque :}}$
+
+Dans notre cas, nous utiliserons un critère statistique comme pénalité.
+
+
+Concernant le choix d'un algorithme nous avons deux différents choix : la méthode dite "exacte" ou "heuristique".
+
+
+Ces deux méthodes ont des avantages différents : la méthode exacte pour trouver le minimum global et la méthode approchée qui permet d'obtenir une solution facilement calculable. Nous avons donc le choix entre privilégier l'exactitude ou le temps de calcul.
+
+
+Avant de présenter les différents algorithmes que nous avons étudiés, intéressons-nous à l'analyse de ruptures.
+
+
+### C) Changepoint analysis
+
+L'analyse de ruptures peut être vue comme étant l'identification des différents points d'une série temporelle où l'on observe un changement de distribution (i.e. : une modification des propriétés statistiques).
+
+
+Dans notre contexte, nous allons principalement considérer comme fonction de coût $-2\log$($\mathcal{L}$), où $\mathcal{L}$ est la vraisemblance (comme par exemple Horvath en 1993, ou encore Chen \& Gupta en 2000).
+
+
+Dans l'annexe, nous allons donner pour une trajectoire $y_{(t+1):s}$ donnée, les fonctions de coût pour un modèle Bernoulli, Gaussien, de Poisson ou Binomiale Négative.
+
+
+### D) Algorithmes de detection de rupture
+
+
+Il existe de nombreuses méthodes de recherche de ruptures (changepoint) pour les séries temporelles. 
+
+
+Parmi ces méthodes, celle de $\textbf{"Binary Segmentation"}$ (Segmentation Binaire) proposée par Scott $\&$ Knott en 1974  est l'une des plus répandues. Cette méthode consiste à appliquer de manière itérative une méthode de détection de rupture unique.
+Elle a un coût de calcul de l'ordre de $\mathcal{O}$($n \log(n)$), où n correspond à la longueur de la série.
+
+
+Contrairement à Binary Segmentation, de nombreux algorithmes de recherche dits "exacts" existent pour les modèles de ruptures les plus courants, cependant, ils ont pour inconvénient d'avoir un coût de calcul bien plus élevé. 
+
+
+$\underline{\textbf{Définition :}}$ (Méthode de recherche exacte)
+
+C'est une méthode de résolution qui nous permet d'obtenir une solution optimale.
+
+
+Les algorithmes de ce type sont basés sur la $\textbf{programmation dynamique}$. 
+
+
+#### i. Programmation dynamique
+
+La programmation dynamique est une méthode algorithmique ayant pour but de résoudre des problèmes d'optimisation. Richard Belmann en est le pionnier au début des années 1950. Cette méthode consiste à résoudre un problème en le décomposant en plusieurs sous problèmes, et ensuite en résolvant ces mêmes sous problèmes, du plus petit au plus grand, en stockant les résultats intermédiaires.
+
+
+Une des plus connues est sans doute la méthode de $\textbf{"Segment Neighbourhood"}$, proposée par Auger $\&$ Lawrence en 1989. Son coût de calcul est de l'ordre de $\mathcal{O}$(Q$n^2$), où Q est le nombre maximal de changepoint que l'on souhaite rechercher.
+
+
+La méthode $\textbf{"Optimal Partitioning"}$ (Partitionnement Optimal, que l'on appellera $\textbf{OP}$) proposée par Jackson $\&$ al. en 2005 est un autre algorithme de ce type.
+
+
+En plus de la méthode OP, nous allons étudier un autre algorithme de ce type tel que $\textbf{"Pruned Exact Linear Time"}$ (dit $\textbf{PELT}$).
+
+
+Dans ce projet, nous allons nous intéresser aux deux premières méthodes de détection de ruptures de notre mémoire : les méthodes $\textbf{Optimal Partitioning}$ qui sera la méthode naïve et $\textbf{Pruned Exact Linear Time}$ qui sera la méthode améliorée.
+
+
+### E) La méthode OP
+
+En 2005, Jackson $\&$ al. ont proposé une méthode de recherche qui a pour but de minimiser la fonction suivante : 
+
+$$\sum_{i=1}^{m+1}C(y_{\tau_i+1:\tau_{i+1}})+\beta $$ 
+
+
+
+La méthode d'OP commence par un conditionnement sur la dernière rupture, il relie ensuite la valeur optimale de la fonction de coût au coût de la partition optimale des données avant la dernière rupture plus le coût du segment de la dernière rupture à la fin de la série temporelle.
+
+
+Plus formellement, considérons $Q_{s}$ le minimum par (2) des données $y_{1:s}$, et $\mathcal{T}_s = \{ \tau : 0 = \tau_0 < \tau_1 < ... < \tau_m < \tau_{m+1} = s\}$ un ensemble de vecteurs de ruptures pour chaque données.
+
+Finalement, on pose $Q_{0} = -\beta$ .
+
+Par conséquent, on a : 
+
+
+$$\displaystyle Q_{s} = \min_{\tau \in \mathcal{T}_s} \Big\{ \sum_{i=1}^{m+1} C(y_{\tau_{i}+1:\tau_{i+1}}) + \beta \Big\}$$
+$$ = \min_t \Big \{ \min_{\tau \in \mathcal{T}_s} \sum_{i=1}^{m} \{ C(y_{\tau_{i}+1:\tau_{i+1}}) + \beta \} + C(y_{\tau_{m}+1:\tau_{m+1}}) + \beta \Big \} $$ 
+$$ = \min_t \Big \{ Q_t + C(y_{(t+1):s}) + \beta  \Big \} $$
+
+Ceci fournit une récursion qui donne le cout minimal des données $y_{1:s}$ en termes de cout minimal des données $y_{1:t}$ $\forall t<s$.
+
+On peut resoudre cette recursion pour s = 1,2,…,n.
+
+Le coût de résolution pour le temps s est linéaire en s, donc le coût global pour determiner $Q_n$ est quadratique en n.
+
+#### Présentation de l'algorithme
+
+Ici, nous allons brievement présenter l'algorithme et ses différentes implémentations :
+
+La méthode OP prend les arguments suivants : une série temporelle $y_{1:n} = (y_1,...,y_n) \in \mathbb{R}^n$, une fonction de coût $\mathcal{C(.)}$ qui dépend de la série et une pénalité $\beta $ qui ne dépend pas du nombre ou de la position des ruptures.
+
+Afin de différencier la detection d'un unique point de rupture avec ocPELT, et la fonction pour la detection de multiples points de ruptures avec myPELT
+
+
+
+#### Utilisation de la fonction
+
+```{r}
+data <- dataSeries(2,100)
+onechangeOP(data)
+```
+
+```{r}
+data <- dataSeries(4, 50)
+myOP(data)
+```
+On remarque que les algortithmes detectent assez bien les changepoints. On remarque néanmoins que l'on pourrait améliorer la vitesse d'execution de l'algorithme.
+
+La prochaine méthode que nous allons présenter est une amélioration d'OP : c'est la méthode PELT.
+
+
+### F) La méthode PELT
+
+La méthode PELT est une méthode qui a pour but de réduire le coût de calcul de la méthode OP. Cette réduction se fait via une étape de pruning (élagage).
+
+Le principe d'élagage dans PELT est de supprimer les valeurs de $\tau$ qui ne peuvent jamais être des minima de la minimisation (1) réalisée à chaque itération de la méthode OP.
+
+Le théorème suivant nous donne une simple condition sous laquelle nous pouvons appliquer un tel élagage :
+
+$\underline{\textbf{Théorème :}}$ (Condition d'élagage PELT)
+
+
+ntroduit une rupture dans une suite d'observations, le coût $\mathcal{C}$ des suites réduites.
+
+Plus formellement, supposons qu'il existe une constante K telle que $\forall t < s < T$,
+
+$$ \mathcal{C}(y_{(t+1):s}) + \mathcal{C}(y_{(s+1):T}) + K \leq \mathcal{C}(y_{(t+1):T}) \hspace{7mm} (2)$$
+
+Alors si :
+
+$$ Q_t + \mathcal{C}(y_{(t+1):s}) + K \geq Q_s \hspace{7mm} (3)$$
+est toujours valable, à un temps $T>s$, t ne pourra jamais être la dernière rupture optimale avant T.
+
+
+$\underline{\textbf{Remarque :}}$
+
+La condition imposée pour qu'une possible rupture t soit définitivement écartée est importante car elle enlève des calculs inutiles pour avoir l'ensemble des points de ruptures.
+
+
+Cette condition peut être facilement intégrée dans la méthode OP, et l'algorithme 
+est donné dans le prochain point.
+
+
+#### Présentation de l'algorithme
+
+Dans cette sous-section, nous allons présenter le pseudo-code de la méthode PELT. La différence entre OP et PELT est le pruning dans PELT via l'ajout de l'ensemble $R_t$ (et donc le calcul de $Q_t$ et $cp(t)$ dans cet ensemble au lieu de parcourir $\{0,...,t-1\}$) afin de réduire le cout de calcul de l'algorithme, par conséquent la méthode PELT sera au moins autant efficace qu'OP.
+
+
+La méthode PELT prend les mêmes arguments que la méthode OP, à savoir une série temporelle $y_{1:n} = (y_1,...,y_n) \in \mathbb{R}^n$, une fonction de coût $\mathcal{C(.)}$ qui dépend de la série et une pénalité $\beta $ qui ne dépend pas du nombre ou de la position des ruptures.
+
+Comme pour OP, nous avons implémenté deux fonctions afin de différencier la detection d'un unique point de rupture avec ocPELT, et la fonction pour la detection de multiples points de ruptures avec myPELT
+
+
+#### Utilisation de la fonction
+
+```{r}
+data <- dataSeries(2,100)
+onechangePELT(data)
+```
+
+```{r}
+data <- dataSeries(4, 50)
+myPELT(data)
+```
+On remarque que les algorithmes detectent relativement bien les bons changepoints.
+
+
+
+## 3. Métriques de performances des modèles
+
+### a) TSS, TP Rate, accuracy et distance MAE
+
+Chacune des méthodes que nous avons implémenté nous permet à partir d'une série d'observations de renvoyer si une fraude a été détectée.
+En simulant nos échantillons et en connaissant de ce fait leur classe réelle, nous avons pu dériver des prédiction de nos algorithmes des matrices de confusions.
+
+Ces dernières comptabilisent le compte de fraudes correctement et incorrectement classifiées commme telles (resp. les vrais positifs: VP, et les faux négatifs: FN) ainsi que les séries sans fraudes correctement et incorrectement classifiées (resp. les vrais négatifs:VN,  et les faux positifs: FP).
+
+Les matrices de confusion nous ont permit de construire différentes métriques de performances, qui nous permettront par la suite de comparer nos modèles.
+
+- La première, qui répond à la question d'estimer la probabilité de détecter correctement une fraude, est le True Positive Rate, ou sensibilité de notre test: $TPR =  \frac{VP}{VP + FN}$.
+
+- La seconde prend en compte la précision générale de notre classification, en intégrant également le taux de vrais négatifs: $accuracy = (FN+VP)/(VN+FN+FP+VP)$ 
+
+- La troisième, la TSS (True Skill Statistic), est une mesure de précision dérivant d'une matrice de confusion, et prenant en compte la sensibilité et la spécificité (\emph{ie:} la proportion de positifs (resp. négatifs) classifiés comme tels) de notre classification. Elle permet de faire un compromis entre ces deux grandeurs, et son expression est la suivante: 
+$$TSS=sensibilite + specificite - 1$$
+Elle prend des valeurs entre $-1$ et $1$, une valeur de $1$ indiquant une classification parfaite, et une valeur proche de $0$ indiquant une classification proche du hasard.
+
+
+
+- La dernière, MAE (moyenne des écarts en valeur absolue), correspond à la moyenne des écarts en valeur absolue entre les tau de ruptures (temps de fraudes) réels et les tau de ruptures estimés: $MAE = mean(|\hat{\tau} - \tau|)$.
+Elle nous a permis, notamment lors de la selection du nombre de temps à échantilloner pour améliorer notre modèle d'estimation par maximum de vraissemblance glouton, de nous donner une idée d'à quel point nous nous éloignions des temps de fraudes réels en limitant nos temps $\tau$ candidats.
+
+
+### b) NID
+
+Afin d'évaluer les performances obtenues avec les algorithmes OP et PELT, nous allons utiliser la métrique de similarité NID (Normalized Information Distance). Cette distance entre deux vecteurs x et y se défini ainsi : 
+$$\mathcal{e}(x,y) = \frac{max\{K(x|y),K(y|x)\}}{max\{K(x), K(y)\}},$$
+Où K(x|y) est l'information algorithmique de x donné par y.
+
+
+# III/  Simulations : performances, compléxité et vitesse d'exécution
+
+## 1. Évaluation des performances
+
+### a) Sélection de la valeur de K pour les modèles d'estimation par vraissemblance
+
+Pour choisir une valeur de K permettant de faire un bon compromis entre temps d'execution et précision de l'algorithme, nous avons fait un nombre restreint de simulations plusieurs fois de suite, en faisant varier le paramètre K entre $1$ et $501$ par pas de $2$.
+
+Nous nous sommes ensuite intéressé aux graphes du temps d'execution, de la TSS et de la distance MAE, en fonction de la valeur du saut $K$, pour l'algorithme glouton modifié.
+Ce dernier ne considère qu'un $\tau$ sur $K$ en parcourant l'espace des $\tau$ candidats.
+
+```{r Selection de K}
+
+accu_list <- c()
+dist_list <- c()
+time_list <- c()
+k_list <- seq(1,501, by = 2)
+
+for(k in k_list){
+  
+  print(k)
+  start_time <- as.numeric(Sys.time())
+  
+  sim_k <- simu_EMV_K(nsimu = 60, tresh = 0.2, K = k)
+  
+  time <- as.numeric(Sys.time()-start_time)
+  
+  accu <- mean(sim_k$tss)
+  dist <- mean(sim_k$tau_dist)
+  
+  accu_list <- c(accu_list, accu)
+  dist_list <- c(dist_list, dist)
+  time_list <- c(time_list, time)
+  
+}
+
+plot(k_list, time_list, type='l', main = "Temps d'éxecution", xlab = "Ecart entre les tau candidats", ylab = "Temps (sec)")
+plot(k_list, accu_list, type='l', main ="True Skill Statistic", xlab = "Ecart entre les tau candidats", ylab = "TSS")
+plot(k_list, dist_list, type='l', main = "MAE entre tau estimé et tau réel", xlab = "Ecart entre les tau candidats", ylab = "MAE")
+
+```
+On peut voir à l'allure de la courbe du temps d'execution que l'augmentation de $K$ (et de ce fait la diminution du nombre de $\tau$ candidats) améliore drastiquement le temps de calcul, et on atteint rapidement un seuil entre $K = 50$ et $K=100$.
+De plus on peut constater que malgré une baisse des valeurs de TSS à mesure que $K$ augmente, ces dernières restent très satisfaisantes pour des valeurs de $K$ allant jusqu'à $200$.
+La valeur moyenne des écarts en valeur absolue a tendance quant à elle à augmenter plutôt rapidement, et cette mesure d'écart devient rapidement très grande pour des $K$ supérieurs à $100$.
+
+Nous avons donc choisi pour la suite de fixer la valeur de ce paramètre $K$ à $100$, réalisant donc ainsi un bon compromis entre les performances de nos modèles et leur temps d'execution.
+
+Il est cependant intéréssant de noter que nos modèles restent assez performants comme on peut le voiraux valeurs prises par la TSS même pour de grandes valeurs de $K$, où nous ne parcourons que très peu de valeurs de $\tau$.
+Ainsi, on peut en conclure que pour ce qui est du problème de détecter la fraude sans s'intéresser à la position de cette dernière, le fait d'être éloigné du temps de rupture réel n'est pas trop impactant en général. En effet, tant que la fracture ne se situe pas trop aux bords de la série, des valeurs de $\tau$ candidats médiantes permettent une approximation suffisamment bonne des $p_0$ et $p_1$, et ainsi de détecter la fraude malgré tout.
+
+
+### b)  Performances des modèles se basant sur la vraissemblance et de CUSUM
+
+Pour confronter les performances de nos modèles, nous avons réalisé $500$ simulations pour chaque $\tau\in\{100, 200, ..., 1800, 1900\}$. Nous pouvons ainsi tester nos modèles pour des $\tau$ de ruptures aussi bien au milieu de la série que proche du bord.
+
+La simulation des données se fait avec une routine nous permettant de nous assurer une bonne répartition des échantillons fraudés et non fraudés: nous fixons la proportion de fraudes à la moitié du total de nos simulations. Ainsi, nous nous assurons que la prévalence d'une des deux classes de séries ne biaisera pas les mesures de performances de nos modèles.
+
+
+Effectuons les simulations:
+
+- algorithme EMV glouton:
+```{r simu EMV}
+nsim <- 200
+
+time_EMV <- as.numeric(Sys.time())
+res_EMV <- simu_EMV(nsimu = nsim, tresh = 0.2)
+time_EMV <- as.numeric(Sys.time()) - time_EMV
+cat("Temps d'execution de la simulation: ", time_EMV)
+
+```
+
+- algorithme EMV échantillonnant selon une loi uniforme:
+```{r simu EMV unif}
+
+time_EMV_unif <- as.numeric(Sys.time())
+res_EMV_unif <- simu_EMV_K_unif(nsimu = nsim, tresh = 0.2, K = 100)
+time_EMV_unif <- as.numeric(Sys.time()) - time_EMV_unif
+cat("Temps d'execution de la simulation: ", time_EMV_unif)
+
+
+```
+
+- algorithme EMV échantillonnant selon la loi $\mathcal N(1000, 500)$:
+
+```{r simu EMV norm}
+
+time_EMV_norm <- as.numeric(Sys.time())
+res_EMV_norm <- simu_EMV_K_norm(nsimu = nsim, tresh = 0.2, K = 100)
+time_EMV_norm <- as.numeric(Sys.time()) - time_EMV_norm
+cat("Temps d'execution de la simulation: ", time_EMV_norm)
+
+```
+
+- algorithme CUSUM:
+
+```{r simu cusum}
+
+time_CSM <- as.numeric(Sys.time())
+res_CSM <- simu_CSM(nsimu = nsim)
+time_CSM <- as.numeric(Sys.time()) - time_CSM
+cat("Temps d'execution de la simulation: ", time_CSM)
+
+```
+
+
+On peut déjà noter la forte différence de temps d'execution entre les simulations avec l'algorithme glouton et ses contreparties améliorées.
+La simulation avec CUSUM est quand à elle relativement longue, mais elle reste raisonnable en comparaison avec celle de l'EMV glouton. 
+
+Maintenant que les simulations sont effectuées, nous affichons les boxplots des valeurs de TSS, d'accuracy, de sensibilité et de MAE:
+
+```{r recap}
+
+df_recap <- tibble(labels = c(rep("EMV", 19), rep("EMV_Kunif", 19), rep("EMV_Knorm", 19), rep("CSM", 19)),
+                   TPR = c(res_EMV$tpr, res_EMV_unif$tpr, res_EMV_norm$tpr, res_CSM$tpr),
+                   TSS =  c(res_EMV$tss, res_EMV_unif$tss, res_EMV_norm$tss, res_CSM$tss),
+                   tau_MAE =  c(res_EMV$tau_dist, res_EMV_unif$tau_dist, res_EMV_norm$tau_dist, res_CSM$tau_dist),
+                   Accuracy = c(res_EMV$accuracy, res_EMV_unif$accuracy, res_EMV_norm$accuracy, res_CSM$accuracy)
+                   )
+
+ggplot(df_recap, aes(x = labels, y = TPR, fill = labels)) + 
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+ggplot(df_recap, aes(x = labels, y = Accuracy, fill = labels)) + 
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+ggplot(df_recap, aes(x = labels, y = TSS, fill = labels)) + 
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+ggplot(df_recap, aes(x = labels, y = tau_MAE, fill = labels)) + 
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+```
+
+
+Nous pouvons constater avec les boxplots de TSS, d'accuracy et de sensibilité que le modèle CUSUM obtient de meilleures performances que tous les autres modèles.
+
+On voit également une baisse de qualité des prédictions entre le modèle glouton et les modèles d'approximation, mais cette dernière n'est pas drastique.
+
+La précision de CUSUM pour la détection de fraude est donc meilleure. Mais on voit de plus que les distances MAE sot plus faibles avec CUSUM. Ainsi, cet algorithme prmet en plus de prédire des valeurs de ruptures en moyenne plus proches des valeurs réelles que tous nos autres modèles.
+
+En conclusion, l'idée d'approximation de la solution s'est avérée plutôt bonne notamment pour ce qui est du temps de calcul étant donné la faible baisse en qualité de prédiction. Nos deux modèles d'approximation ont obtenu des valeurs similaires.
+
+Le fait que CUSUM soit e mesure de rivaliser avec l'estimation gloutonne par maximum de vraissemblance est également très encourageant vis à vis de cette méthode.
+
+
+### c) NID pour OP et PELT
+
+Dans cette partie, nous allons étudier l'évolution des performances du score NID sur les algorithmes OP et PELT. 
+Pour cela, nous allons réaliser 50 simulations sur plusieurs tailles de données (allant de 0 à 50000 par des pas de 2500).
+Nous allons également distinguer différentes séries temporelles : sans changepoint, avec 1 changepoint, 2 changepoints et 5 changepoints.
+Nous allons nous aider de la fonction "mclapply" afin de réaliser du calcul parallèle, et ainsi réduire le temps d'execution des simulations. De plus, nous avons implémenté des fonctions "one.simu_score_XX" qui réalisent une simulation de score pour un algorithme XX donné.
+
+#### i. 0 changepoint
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 1
+
+for(n in seq)
+{
+  print(n)
+  a <- function(i) {one.simu_score_ocOP(K = K, n = n)}
+  b <- function(i) {one.simu_score_ocPELT(K = K, n = n)}
+  
+  
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+
+  dfOP[j] <- mean(as.numeric(stock_v(tOP)), na.rm=T)
+  dfPELT[j] <- mean(as.numeric(stock_v(tPELT)), na.rm=T)
+  
+  
+  j <- j+1
+}
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(OP + PELT ~ n, ylab = "Score", main = "OP vs PELT : Bernoulli model without changepoint", type = "l", ylim = c(0.9,1), auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+Ici nous remarquons que les deux algorithmes sont très performants. En effet, ils présentent tout les deux des scores excellents, proches de 1.
+Cependant, l'algorithme PELT présente une plus grande dispersion comparé à celle d'OP.
+
+
+#### ii. 1 changepoint
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 2
+
+for(n in seq)
+{
+  print(n)
+  a <- function(i) {one.simu_score_ocOP(K = K, n = n)}
+  b <- function(i) {one.simu_score_ocPELT(K = K, n = n)}
+  
+  
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+
+  dfOP[j] <- mean(as.numeric(stock_v(tOP)), na.rm=T)
+  dfPELT[j] <- mean(as.numeric(stock_v(tPELT)), na.rm=T)
+  
+  
+  j <- j+1
+}
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(OP + PELT ~ n, ylab = "Score", main = "OP vs PELT : Bernoulli model without changepoint", type = "l", ylim = c(0.8,1), auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+
+Lors de la présence d'un changepoint, les deux algorithmes sont moins efficaces que lors du premier cas. Néanmoins, ils présentent toujours un bon score de performance et ont d'ailleurs des résultats similaires.
+
+
+
+#### iii. 2 changepoints
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 3
+
+for(n in seq)
+{
+  print(n)
+  a <- function(i) {one.simu_score_OP(K = K, n = n)}
+  b <- function(i) {one.simu_score_PELT(K = K, n = n)}
+  
+  
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+
+  dfOP[j] <- mean(as.numeric(stock_v(tOP)), na.rm=T)
+  dfPELT[j] <- mean(as.numeric(stock_v(tPELT)), na.rm=T)
+  
+  
+  j <- j+1
+}
+
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(OP + PELT ~ n, ylab = "Score", main = "OP vs PELT : Bernoulli model without changepoint", type = "l", ylim=c(0.85,1), auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+
+Les résultats ici sont très proches de la simulation précédente, les algorithmes sont toujours aussi performants.
+
+
+
+#### iv. 5 changepoints
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 10 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 6
+
+for(n in seq)
+{
+  print(n)
+  a <- function(i) {one.simu_score_OP(K = K, n = n)}
+  b <- function(i) {one.simu_score_PELT(K = K, n = n)}
+  
+  
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+
+  dfOP[j] <- mean(as.numeric(stock_v(tOP)), na.rm=T)
+  dfPELT[j] <- mean(as.numeric(stock_v(tPELT)), na.rm=T)
+  
+  
+  j <- j+1
+}
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(OP + PELT ~ n, ylab = "Score", main = "OP vs PELT : Bernoulli model without changepoint", type = "l", ylim = c(0.85,1),  auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+
+A nouveau, les résultats sont similaires aux précédents. Les deux algorithmes sont toujours aussi performants.
+
+
+
+## 2. Compléxité des algorithmes implémentés
+
+Dans cette partie, nous allons voir les résultats de temps de calcul entre les algorithmes implémentés selon différents cas.
+
+
+Tout d'abord, nous allons représenter graphiquement l'évolution de la compléxité en fonction de la taille des données.
+Pour cela, nous allons réaliser 50 simulations sur plusieurs tailles de données (allant de 0 à 50000 par des pas de 2500).
+Nous allons également distinguer différentes séries temporelles : sans changepoint, avec 1 changepoint, 2 changepoints et 5 changepoints.
+Nous allons nous aider de la fonction "mclapply" afin de réaliser du calcul parallèle, et ainsi réduire le temps d'execution des simulations. De plus, nous avons implémenté des fonctions "one.simu_time_XX" qui calculent le temps d'execution d'une simulation pour un algorithme X donné.
+
+
+Ici pour estimer statistiquement la fonction de complexité conjecturée par le graphe des temps de calcul nous utiliserons un package nommé "GuessCompx :
+
+@Manual{,
+    title = {GuessCompx: Empirically Estimates Algorithm Complexity},
+    author = {Marc Agenis and Neeraj Bokde},
+    year = {2019},
+    note = {R package version 1.0.3},
+    url = {https://CRAN.R-project.org/package=GuessCompx},
+  }
+
+A) CUSUM
+```{r}
+nb_test = 500
+p1 = runif(nb_test,min=0.1,max=0.9)
+p2 = runif(nb_test,min=0.1,max=0.9)
+id = rbinom(nb_test,size=1,prob=0.5)
+p2[id==0] = p1[id==0]
+tau = rep(1000,nb_test)
+Y_true = !(p1 == p2)
+Y_pred = rep(0,nb_test)
+n = 2000
+
+mat_X = constuct_data(n,tau,p1,p2)
+
+TIMER = Sys.time()
+Y_pred = multi_cusum(mat_X)$y_pred #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_cusum)
+```
+
+```{r}
+multi_EMV <- function(mat_X, fun = tau_EMV){
+
+  #fun doit prendre pour valeur:
+  #tau_EMV ou tau_EMV_K_unif ou tau_EMV_K_norm
+
+  nb_test = DIM(mat_X)[1]
+  y_pred = rep(NA,nb_test)
+
+  for (j in 1:nb_test) {
+    result = fun(data = mat_X[j,], tresh = 0.2)
+
+    y_pred[j] = result$Fraude
+  }
+  return(list("y_pred"= y_pred))
+}
+multi_EMV_K <- function( mat_X){
+  
+  #fun doit prendre pour valeur:
+  #tau_EMV _ou_ tau_EMV_K_unif _ou_ tau_EMV_K_norm
+  
+  nb_test = DIM(mat_X)[1]
+  y_pred = rep(NA,nb_test)
+  
+  for (j in 1:nb_test) {
+    result = tau_EMV_K(data = mat_X[j,], tresh = 0.2, K = 100)
+    
+    y_pred[j] = result$Fraude
+  }
+  return(list("y_pred"= y_pred))
+}  
+```
+
+MULTI_EMV
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_EMV(mat_X,fun=tau_EMV_K) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_EMV_K(mat_X))
+```
+
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_EMV(mat_X,fun=tau_EMV) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_EMV(mat_X,))
+```
+
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_ocOP(mat_X) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_ocOP)
+```
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_ocPELT(mat_X) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_ocPELT)
+```
+
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_OP(mat_X) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_OP)
+```
+
+```{r}
+TIMER = Sys.time()
+Y_pred = multi_PELT(mat_X) #CUSUM pour un DataSet entier X
+print(Sys.time() - TIMER)
+
+CompEst(mat_X,multi_PELT)
+```
+
+Au vu des résultats de la complexité avec notre régression, on remarque que certains alorithmes sont plus performants que d'autres. Notamment, certains algorithmes comme le CUSUM qui a une complexité linéaire à l'instar de la méthode gloutonne par maximum de vraissemblance.
+
+
+### a) Graphiques avec xyplot
+
+
+Pour les simulations sur les deux premiers cas, nous allons comparer les algorithmes CUSUM, EMV, ocOP et ocPELT, ensuite sur les deux derniers nous allons comparer OP et PELT
+
+#### i. 0 changepoint
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfCUSUM <- rep(0, length(seq))
+dfEMV <- rep(0, length(seq))
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 1
+
+for(n in seq)
+{
+  print(n)
+  f <- function(i) {one.simu_time_CUSUM(K = K, n = n)}
+  g <- function(i) {one.simu_time_EMV(K = K, n = n)}
+  a <- function(i) {one.simu_time_ocOP(K = K, n = n)}
+  b <- function(i) {one.simu_time_ocPELT(K = K, n = n)}
+  
+  
+  
+  tCUSUM <- mclapply(1:p, FUN = f, mc.cores = nbCores)
+  tEMV <- mclapply(1:p, FUN = g, mc.cores = nbCores)
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+  dfCUSUM[j] <- mean(stock_v(tCUSUM))
+  dfEMV[j] <- mean(stock_v(tEMV))
+  dfOP[j] <- mean(stock_v(tOP))
+  dfPELT[j] <- mean(stock_v(tPELT))
+  
+  
+  j <- j+1
+}
+
+
+n <- seq
+CUSUM <- dfCUSUM
+EMV <- dfEMV
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(CUSUM + EMV + OP + PELT ~ n, ylab = "Time", main = "CUSUM vs EMV vs OP vs PELT : Bernoulli model without changepoint", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+xyplot(log(CUSUM) + log(EMV) + log(OP) + log(PELT) ~ log(n), ylab = "log(Time)", main = "CUSUM vs EMV vs OP vs PELT : Bernoulli model without changepoint", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+```
+
+Avec ce graphique, nous remarquons que PELT et CUSUM sont plus rapides que les deux autres algorithmes.
+En effet, nous remarquons que OP est légèrement plus lent que ces deux algorithmes, et que EMV est beaucoup plus lent que les autres algorithmes.
+
+
+#### ii. 1 changepoint
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfCUSUM <- rep(0, length(seq))
+dfEMV <- rep(0, length(seq))
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+nbCores <- 8
+j <- 1
+
+K <- 2
+
+for(n in seq)
+{
+  print(n)
+  f <- function(i) {one.simu_time_CUSUM(K = K, n = n)}
+  g <- function(i) {one.simu_time_EMV(K = K, n = n)}
+  a <- function(i) {one.simu_time_ocOP(K = K, n = n)}
+  b <- function(i) {one.simu_time_ocPELT(K = K, n = n)}
+  
+  
+  
+  tCUSUM <- mclapply(1:p, FUN = f, mc.cores = nbCores)
+  tEMV <- mclapply(1:p, FUN = g, mc.cores = nbCores)
+  tOP <- mclapply(1:p, FUN = a, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = b, mc.cores = nbCores)
+  
+  dfCUSUM[j] <- mean(stock_v(tCUSUM))
+  dfEMV[j] <- mean(stock_v(tEMV))
+  dfOP[j] <- mean(stock_v(tOP))
+  dfPELT[j] <- mean(stock_v(tPELT))
+  
+  
+  j <- j+1
+}
+
+
+n <- seq
+CUSUM <- dfCUSUM
+EMV <- dfEMV
+OP <- dfOP
+PELT <- dfPELT
+
+xyplot(CUSUM + EMV + OP + PELT ~ n, ylab = "Time", main = "CUSUM vs EMV vs OP vs PELT: Bernoulli model with one changepoint", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+xyplot(log(CUSUM) + log(EMV) + log(OP) + log(PELT) ~ log(n), ylab = "log(Time)", main = "CUSUM vs EMV vs OP vs PELT: Bernoulli model with one changepoint", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+```
+Ici, nous remarquons que les algorithmes PELT ET CUSUM sont les plus rapides. Ils sont environ 2 et 3 fois plus rapides que les algorithmes OP et EMV. 
+
+
+
+#### iii. 2 changepoints
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 3
+
+for(n in seq)
+{
+  print(n)
+  f <- function(i) {one.simu_time_OP(K = K, n = n)}
+  g <- function(i) {one.simu_time_PELT(K = K, n = n)}
+  
+  tOP <- mclapply(1:p, FUN = f, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = g, mc.cores = nbCores)
+  
+  dfOP[j] <- mean(stock_v(tOP))
+  dfPELT[j] <- mean(stock_v(tPELT))
+  
+  j <- j+1
+}
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+xyplot(OP + PELT ~ n, ylab = "Time", main = "OP vs PELT : Bernoulli model with two changepoints", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+xyplot(log(OP) + log(PELT) ~ log(n), ylab = "log(Time)", main = "OP vs PELT : Bernoulli model with two changepoints", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+
+Nous remarquons que PELT est plus rapide que OP dans la plupart des différentes tailles de données. Hormis quelques cas, PELT est plus performant que OP grâce a son étape d'élagage.
+
+
+
+#### iv. 5 changepoints
+
+
+```{r}
+seq <- seq(0,50000,5000)
+
+p <- 30 ### répétition
+dfOP <- rep(0, length(seq))
+dfPELT <- rep(0, length(seq))
+
+
+nbCores <- 8
+j <- 1
+
+K <- 6
+
+for(n in seq)
+{
+  print(n)
+  f <- function(i) {one.simu_time_OP(K = K, n = n)}
+  g <- function(i) {one.simu_time_PELT(K = K, n = n)}
+  
+  tOP <- mclapply(1:p, FUN = f, mc.cores = nbCores)
+  tPELT <- mclapply(1:p, FUN = g, mc.cores = nbCores)
+  
+  dfOP[j] <- mean(stock_v(tOP))
+  dfPELT[j] <- mean(stock_v(tPELT))
+  
+  j <- j+1
+}
+
+n <- seq
+OP <- dfOP
+PELT <- dfPELT
+xyplot(OP + PELT ~ n, ylab = "Time", main = "OP vs PELT : Bernoulli model with five changepoints", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+
+xyplot(log(OP) + log(PELT) ~ log(n), ylab = "log(Time)", main = "OP vs PELT : Bernoulli model with five changepoints", type = "l", auto.key = list(points = F,lines = T), par.settings = list(superpose.line = list(col = c("red","blue"))))
+```
+Ici, nous remarquons clairement que PELT est beaucoup plus rapide que OP.En effet, il est presque deux fois plus rapide que OP dans certaines simulations.
+
+
+
+## 3. Vitesse d'execution R vs C++
+
+Dans cette partie, nous allons utiliser un violin plot afin de visualiser les différences de vitesse d'execution entre tout les algorithmes que nous avons implémentésen R et C++.
+
+
+Un violin plot est utilisé pour visualiser la distribution de données. C'est une représentation similaire à celle d'un boxplot mais montre plus d'informations que ce dernier, avec par exemple la présence ou non de plusieurs modes dans la distribution des données.
+
+
+Nous allons simuler 50 fois les différents algorithmes sur des données de taille 2000. 
+
+
+
+```{r}
+res1 <- microbenchmark(one.simu_time_ocOP(K=2, n=1000), one.simu_time_ocOPcpp(K=2, n=1000), 
+                       one.simu_time_ocPELT(K=2, n=1000), one.simu_time_ocPELTcpp(K=2, n=1000),
+                       one.simu_time_CUSUM(K=2, n=1000), one.simu_time_CUSUMcpp(K=2, n=1000),
+                       one.simu_time_EMV(K=2, n=1000), 
+                       #one.simu_time_EMVcpp(K=2, n=1000),
+                       times = 50)
+autoplot(res1)
+summary(res1)
+```
+
+OBSERVATION ICI
+
+
+
+```{r}
+res2 <- microbenchmark(one.simu_time_OP(K=4, n=500), one.simu_time_OPcpp(K=4, n=500),
+                       one.simu_time_PELT(K=4, n=500), one.simu_time_PELTcpp(K=4, n=500),
+                       times = 50)
+autoplot(res2)
+summary(res2)
+```
+
+
+Nous remarquons que les versions de PELT et OP implémentée en C++ sont beaucoup plus rapides que celles implémentées sur R. En effet, l'étape de pruning combiné au gain de vitesse d'execution via C++ nous apporte de meilleurs résultats.
+
+
+
+# IV/  Conclusion
+
+Nous avons pu lors de ce projet nous familiariser à la problématique de détection de fraude, et mettre en place différents algorithmes de détection. Nous avons pu en adapter les plus complexes et améliorer les plus naïfs tout en obtenant des résultats très satisfaisant pour ce qui est de la détection des fraudes dans nos séries d'observations.
+
+Il serait intéressant de poursuivre le travail en recherchant de nouveaux modèles permettant de définir une probabilité d'appartenance aux classes, et essayer de généraliser nos modèles à de nouvelles distributions de données.
+
