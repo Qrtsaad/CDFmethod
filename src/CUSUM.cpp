@@ -39,7 +39,6 @@ List cusumcpp(NumericVector X, double a) {
 
 
 /*** R
-source("scorefct.R")
 nb_test = 500
 p1 = runif(nb_test,min=0.1,max=0.9)
 p2 = runif(nb_test,min=0.1,max=0.9)
