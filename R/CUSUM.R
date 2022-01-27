@@ -136,7 +136,7 @@ TIMER = Sys.time()
 Y_pred = multi_cusum(mat_X)$y_pred
 TIMER = Sys.time() - TIMER
 
-print(compute_mf(Y_true,Y_pred,score="accuracy"))
+#print(compute_mf(Y_true,Y_pred,score="accuracy"))
 
 #CompEst(mat_X,multi_cusum)
 
