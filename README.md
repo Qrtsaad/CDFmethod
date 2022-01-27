@@ -11,5 +11,7 @@ library(tidyverse)
 data <- dataSeries(2,1000) 
 onechangeOP(data)
 onechangePELT(data)
-n_simul <- 50simu_EMV_K_unif(nsimu = n_simul)simu_CSM(nsimu = n_siimul)
+n_simul <- 50
+simu_EMV_K_unif(nsimu = n_simul)
+simu_CSM(nsimu = n_simul)
 ```
