@@ -227,7 +227,7 @@ one.simu_time_CUSUM <- function(K,n)
 one.simu_time_CUSUMcpp <- function(K,n)
 {
   data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
-  sim <- as.numeric(system.time(cusumcpp(data))[3])
+  sim <- as.numeric(system.time(cusumcpp(data,a=0.05))[3])
   
   return(sim)
 }
