@@ -1,7 +1,3 @@
-source(file = "scorefct.R")
-library(tictoc)
-library(GuessCompx)
-
 DIM = function(x) if(is.null(dim(x))) length(x) else dim(x)[1]
 
 constuct_data = function(n,tau,p1,p2) {
@@ -51,6 +47,21 @@ cusum = function(X,a=0.05) {
   
   return(list('Tt'=Tt,'curveCSM'=curveCSM,'tau'=tau,'CSMmax'=CSMmax,'sigma_e'=sigma_e,
               'T_stat'=T_stat,'p_value'=p_value,'y_pred'=y_pred,'time'= TIMER))
+}
+
+multi_cusum = function(mat_X,a=0.05) {
+  nb_test = DIM(mat_X)[1]
+  y_pred = tau = p_value = times = rep(NA,nb_test)
+
+  for (j in 1:nb_test) {
+    CSM = cusum(mat_X[j,],a)
+    
+    y_pred[j] = CSM$y_pred
+    p_value[j] = CSM$p_value
+    tau[j] = CSM$tau
+    times[j] = CSM$time
+  }
+  return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau,"times"=times))
 }
 
 mini_bench = function(n_seq,tau=-42) {

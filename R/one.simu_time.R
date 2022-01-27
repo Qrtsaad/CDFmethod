@@ -232,47 +232,6 @@ one.simu_time_CUSUMcpp <- function(K,n)
   return(sim)
 }
 
-#' one.simu_time_TRV
-#'
-#'
-#' @description one simulation function for TRV
-#'
-#' @param K number of changepoint
-#' @param n size of each "segment" of the data
-#'
-#' @return the time used to realise one simulation
-#' @export
-#'
-#' @examples
-#' one.simu_time_TRV(2, 1000)
-one.simu_time_TRV <- function(K,n)
-{
-  data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
-  sim <- as.numeric(system.time(print("En cours"))[3])
-  
-  return(sim)
-}
-
-#' one.simu_time_TRVcpp
-#'
-#'
-#' @description one simulation function for TRVcpp
-#'
-#' @param K number of changepoint
-#' @param n size of each "segment" of the data
-#'
-#' @return the time used to realise one simulation
-#' @export
-#'
-#' @examples
-#' one.simu_time_TRVcpp(2, 1000)
-one.simu_time_TRVcpp <- function(K,n)
-{
-  data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
-  sim <- as.numeric(system.time(print("En cours"))[3])
-  
-  return(sim)
-}
 
 #' one.simu_time_EMV
 #'
@@ -312,6 +271,67 @@ one.simu_time_EMVcpp <- function(K,n)
 {
   data <- dataSeries(K, n = 2000, probs = sample(1:9,K)/10)
   sim <- as.numeric(system.time(tau_EMVcpp(data, tresh=0.5))[3])
+  
+  return(sim)
+}
+
+
+
+#' one.simu_RF
+#'
+#'
+#' @description one simulation function for Random Forest
+#'
+#' 
+#' @param n size of the time series
+#'
+#' @return nothing
+#' @export
+#'
+#' @examples
+#' one.simu_RF(2000)
+one.simu_RF <- function(n)
+{
+  nb_test = 500
+  p1 = runif(nb_test,min=0.1,max=0.9)
+  p2 = runif(nb_test,min=0.1,max=0.9)
+  id = rbinom(nb_test,size=1,prob=0.5)
+  p2[id==0] = p1[id==0]
+  tau = rep(1000,nb_test)
+  Y_true = !(p1 == p2)
+  Y_pred = rep(0,nb_test)
+  
+  mat_X = constuct_data(n,tau,p1,p2)
+  
+  train = sample(nrow(mat_X), 0.7*nrow(mat_X), replace = FALSE)
+  TrainSet = mat_X[train,]
+  ValidSet = mat_X[-train,]
+  
+  Y_train = Y_true[train]
+  Y_test = Y_true[-train]
+  RDM_forest = randomForest(as.factor(Y_train) ~. ,data=TrainSet,ntree=500)
+  
+  Y_pred_RF = predict(RDM_forest,ValidSet,type="class")
+  
+}
+
+
+#' one.simu_time_RF
+#'
+#'
+#' @description one simulation function for get the time of one Random Forest construction
+#'
+#' 
+#' @param n size of the time series
+#'
+#' @return the time used to realise one simulation
+#' @export
+#'
+#' @examples
+#' one.simu_time_RF(2000)
+one.simu_time_RF <- function(n)
+{
+  sim <- as.numeric(system.time(one.simu_RF(n))[3])
   
   return(sim)
 }

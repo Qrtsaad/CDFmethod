@@ -16,7 +16,7 @@ one.simu_score_ocOP <- function(K, n)
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
   ocOP <- onechangeOP(data)$tau
   data_pred <- y_predict(data, ocOP)
-  score <- nid_score(data, data_pred)
+  score <- as.numeric(nid_score(data, data_pred))
   return(score)
 }
 
@@ -38,7 +38,7 @@ one.simu_score_ocPELT <- function(K, n)
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
   ocPELT <- onechangePELT(data)$tau
   data_pred <- y_predict(data, ocPELT)
-  score <- nid_score(data, data_pred)
+  score <- as.numeric(nid_score(data, data_pred))
   return(score)
 }
 
@@ -61,7 +61,7 @@ one.simu_score_OP <- function(K, n)
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
   OP <- myOP(data)$changepoints
   data_pred <- y_predict(data, OP)
-  score <- nid_score(data, data_pred)
+  score <- as.numeric(nid_score(data, data_pred))
   return(score)
 }
 
@@ -84,6 +84,6 @@ one.simu_score_PELT <- function(K, n)
   data <- dataSeries(K, n = 100, probs = sample(1:9,K)/10)
   PELT <- myPELT(data)$changepoints
   data_pred <- y_predict(data, PELT)
-  score <- nid_score(data, data_pred)
+  score <- as.numeric(nid_score(data, data_pred))
   return(score)
 }
