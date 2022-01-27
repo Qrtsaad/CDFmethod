@@ -26,8 +26,8 @@ simu_EMV <- function(nsimu = 10, tresh = 0.2, tau_choice = TRUE){
     
     
     
-    if(tau_choice){data <- constuct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
-    else{data <- constuct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
+    if(tau_choice){data <- construct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
+    else{data <- construct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
     
     X <- data$data
     
@@ -92,8 +92,8 @@ simu_EMV_K <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   for(tau in seq(100,1900, by = 100)){
     
     
-    if(tau_choice){data <- constuct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
-    else{data <- constuct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
+    if(tau_choice){data <- construct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
+    else{data <- construct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
     
     X <- data$data
     
@@ -157,8 +157,8 @@ simu_EMV_K_unif <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice = TRUE){
   #Pour chaque position de tau
   for(tau in seq(100,1900, by = 100)){
     
-    if(tau_choice){data <- constuct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
-    else{data <- constuct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
+    if(tau_choice){data <- construct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
+    else{data <- construct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
     
     X <- data$data
     
@@ -221,8 +221,8 @@ simu_EMV_K_norm <- function(nsimu = 10, tresh = 0.2, K = 1, tau_choice=TRUE){
   #Pour chaque position de tau
   for(tau in seq(100,1900, by = 100)){
     
-    if(tau_choice){data <- constuct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
-    else{data <- constuct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
+    if(tau_choice){data <- construct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
+    else{data <- construct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
     
     X <- data$data
     
@@ -285,8 +285,8 @@ simu_CSM <- function(nsimu = 10,  tau_choice = TRUE){
   #Pour chaque position de tau
   for(tau in seq(100,1900, by = 100)){
     
-    if(tau_choice){data <- constuct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
-    else{data <- constuct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
+    if(tau_choice){data <- construct_data(n = 2000, chosen_tau = tau, nsimu = nsimu, tau_choice = tau_choice)}
+    else{data <- construct_data(n = 2000, nsimu = nsimu, tau_choice = tau_choice)}
     
     X <- data$data
     
@@ -333,7 +333,7 @@ simu_CSM <- function(nsimu = 10,  tau_choice = TRUE){
 }
 
 
-constuct_data2 = function(n=2000,tau_choice = TRUE, chosen_tau, nsimu) {
+construct_data = function(n=2000,tau_choice = TRUE, chosen_tau, nsimu) {
   
   p1 = runif(nsimu,min=0.1,max=0.9)
   p2 = runif(nsimu,min=0.1,max=0.9)
