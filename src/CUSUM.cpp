@@ -59,7 +59,7 @@ mat_X = constuct_data(n1+n2,tau,p1,p2)
 
 
 #K1 = multi_cusum(X,a=0.05,CPP=FALSE)
-#K2 = multi_cusum(X,a=0.5,CPP=TRUE)
+#K2 = multi_cusum(X,a=0.05,CPP=TRUE)
 
 
 #print(compute_mf(Y_true,K1$y_pred,score="accuracy"))
