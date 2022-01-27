@@ -1,5 +1,5 @@
 
-multi_EMV <- function(fun = tau_EMV, mat_X){
+multi_EMV <- function(mat_X, fun = tau_EMV){
   
   #fun doit prendre pour valeur:
   #tau_EMV _ou_ tau_EMV_K_unif _ou_ tau_EMV_K_norm
@@ -8,7 +8,7 @@ multi_EMV <- function(fun = tau_EMV, mat_X){
   y_pred = rep(NA,nb_test)
   
   for (j in 1:nb_test) {
-    result = fun(data = mat_X[j,], tresh = 0.2, K = 100)
+    result = fun(data = mat_X[j,], tresh = 0.2)
     
     y_pred[j] = result$Fraude
   }
