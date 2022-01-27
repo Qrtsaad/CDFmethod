@@ -60,20 +60,20 @@ multi_cusum = function(mat_X,a=0.05,CPP=FALSE) {
 
   for (j in 1:nb_test) {
     if(CPP){
+      CSM = cusumcpp(mat_X[j,],a)
+      y_pred[j] = CSM$y_pred
+      tau[j] = CSM$tau
+    }
+    else {
       CSM = cusum(mat_X[j,],a)
       p_value[j] = CSM$p_value
       y_pred[j] = CSM$y_pred
       tau[j] = CSM$tau
     }
-    else {
-      CSM = cusumcpp(mat_X[j,],a)
-      y_pred[j] = CSM$y_pred
-      tau[j] = CSM$tau
-    }
   }
-  if(CPP) return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau#,"times"=times
+  if(CPP) return(list("y_pred"=y_pred,"tau"=tau))
+  else return(list("y_pred"=y_pred,"p_value"=p_value,"tau"=tau#,"times"=times
   ))
-  else return(list("y_pred"=y_pred,"tau"=tau))
 }
 
 
